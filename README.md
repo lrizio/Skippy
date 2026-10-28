@@ -18,6 +18,8 @@ Desktop app for Windows (installer provided), macOS and Linux (build from source
    - Everyone must be able to reach that machine: same LAN, a VPN such as Tailscale, or port 8470 forwarded on the router.
 3. **First run** - start Skippy, open **Server** on the login screen, enter the server address (`ws://<host-ip>:8470`), choose **Create account**, log in, pick your camera/microphone and join a room.
 
+Full instructions with screenshots: **[Skippy User Guide (PDF)](docs/Skippy%20User%20Guide.pdf)**, also attached to each release.
+
 macOS/Linux: build the app yourself (`cd app && npm install && npm run dist` on that OS).
 
 ## What it does
