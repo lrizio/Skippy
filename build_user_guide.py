@@ -158,6 +158,12 @@ def build():
     f.append(P("<b>3. Tell the app where the server is.</b> On the login screen, expand <b>Server</b> and type the "
                "address, for example <i>ws://192.168.1.20:8470</i> (the host's computer on your network). The "
                "address is remembered. Everyone in a group must use the same server."))
+    f.append(box("<b>Keep the server running.</b> The server window must stay open - <b>closing it stops the server</b> "
+                 "and nobody can log in or call. To avoid this, double-click <i>Run Skippy Server in Background.bat</i> "
+                 "instead (run <i>npm install</i> first). The server then runs hidden, starts each time you sign in "
+                 "to Windows and restarts itself if it ever stops; messages are written to <i>server.log</i>. "
+                 "<i>Stop Skippy Server Background.bat</i> switches it off again.", CALLOUT_BG, CALLOUT_BORDER))
+    f.append(Spacer(1, 6))
     f.append(box("<b>Can everyone reach the server?</b> On one home network, yes. Across the internet the host "
                  "needs to forward port 8470 on the router, or the group can use a VPN such as Tailscale. For use "
                  "over the internet, put the server behind a TLS (https) front end and use an address starting "

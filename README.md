@@ -15,6 +15,7 @@ Desktop app for Windows (installer provided), macOS and Linux (build from source
      node server.js
      ```
      (on Windows you can then use `Start Skippy Server.bat`). It listens on port 8470 and keeps its data in `skippy.db`.
+   - **Keep that window open** - closing it stops the server. To avoid that trap, double-click `Run Skippy Server in Background.bat` instead: it runs the server hidden, starts it whenever you sign in to Windows and restarts it if it crashes (log in `server.log`). `Stop Skippy Server Background.bat` undoes it.
    - Everyone must be able to reach that machine: same LAN, a VPN such as Tailscale, or port 8470 forwarded on the router.
 3. **First run** - start Skippy, open **Server** on the login screen, enter the server address (`ws://<host-ip>:8470`), choose **Create account**, log in, pick your camera/microphone and join a room.
 

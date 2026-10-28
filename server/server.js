@@ -389,6 +389,7 @@ const server = http.createServer((req, res) => {
   res.end('Skippy server\n');
 });
 const wss = new WebSocketServer({ server, maxPayload: 256 * 1024 });
+wss.on('error', () => {}); // listen errors are reported by server.on('error') below
 
 wss.on('connection', (ws, req) => {
   const c = { ws, user: null, room: null, ip: req.socket.remoteAddress };
@@ -411,4 +412,9 @@ setInterval(() => {
   }
 }, 20_000);
 
+server.on('error', e => {
+  if (e.code === 'EADDRINUSE') console.error(`Port ${PORT} is already in use - the Skippy server is probably already running (maybe hidden in the background).`);
+  else console.error(e);
+  process.exit(1);
+});
 server.listen(PORT, () => console.log(`Skippy server listening on :${PORT} (db: ${DB_PATH})`));
