@@ -1,0 +1,8 @@
+{
+  "name": "skippy-server",
+  "version": "1.0.0",
+  "description": "Skippy account, signaling and chat-history server",
+  "main": "server.js",
+  "scripts": { "start": "node server.js" },
+  "dependencies": { "ws": "^8.18.0" }
+}

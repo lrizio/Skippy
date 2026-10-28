@@ -1,0 +1,248 @@
+'use strict';
+// Skippy server: accounts, session tokens, room signaling (max 10 per room) and chat history.
+const http = require('http');
+const path = require('path');
+const crypto = require('crypto');
+const { DatabaseSync } = require('node:sqlite');
+const { WebSocketServer } = require('ws');
+
+const PORT = parseInt(process.env.PORT || '8470', 10);
+const DB_PATH = process.env.SKIPPY_DB || path.join(__dirname, 'skippy.db');
+const MAX_PARTICIPANTS = 10;
+const HISTORY_LIMIT = 200;
+const MAX_CHAT_LEN = 4000;
+
+const db = new DatabaseSync(DB_PATH);
+db.exec(`
+  PRAGMA journal_mode = WAL;
+  CREATE TABLE IF NOT EXISTS users (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL COLLATE NOCASE UNIQUE,
+    email TEXT NOT NULL COLLATE NOCASE UNIQUE,
+    callsign TEXT COLLATE NOCASE,
+    salt TEXT NOT NULL,
+    hash TEXT NOT NULL,
+    created INTEGER NOT NULL
+  );
+  CREATE UNIQUE INDEX IF NOT EXISTS users_callsign ON users(callsign) WHERE callsign IS NOT NULL;
+  CREATE TABLE IF NOT EXISTS sessions (
+    token_hash TEXT PRIMARY KEY,
+    user_id INTEGER NOT NULL,
+    created INTEGER NOT NULL
+  );
+  CREATE TABLE IF NOT EXISTS messages (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    room TEXT NOT NULL,
+    user_id INTEGER NOT NULL,
+    name TEXT NOT NULL,
+    ts INTEGER NOT NULL,
+    kind TEXT NOT NULL,
+    text TEXT,
+    file_name TEXT,
+    file_size INTEGER
+  );
+  CREATE INDEX IF NOT EXISTS messages_room ON messages(room, id);
+`);
+
+const q = {
+  userByName: db.prepare('SELECT * FROM users WHERE name = ?'),
+  userByEmail: db.prepare('SELECT * FROM users WHERE email = ?'),
+  userByCall: db.prepare('SELECT * FROM users WHERE callsign = ?'),
+  userById: db.prepare('SELECT * FROM users WHERE id = ?'),
+  insUser: db.prepare('INSERT INTO users (name,email,callsign,salt,hash,created) VALUES (?,?,?,?,?,?)'),
+  insSession: db.prepare('INSERT INTO sessions (token_hash,user_id,created) VALUES (?,?,?)'),
+  sessionUser: db.prepare('SELECT user_id FROM sessions WHERE token_hash = ?'),
+  delSession: db.prepare('DELETE FROM sessions WHERE token_hash = ?'),
+  insMsg: db.prepare('INSERT INTO messages (room,user_id,name,ts,kind,text,file_name,file_size) VALUES (?,?,?,?,?,?,?,?)'),
+  history: db.prepare('SELECT * FROM (SELECT * FROM messages WHERE room = ? ORDER BY id DESC LIMIT ?) ORDER BY id ASC'),
+  recentRooms: db.prepare(
+    'SELECT room, MAX(id) AS last FROM messages WHERE room IN (SELECT DISTINCT room FROM messages WHERE user_id = ?) GROUP BY room ORDER BY last DESC LIMIT 12'
+  ),
+};
+
+// ---- password / token helpers ----
+function hashPassword(password, salt) {
+  return crypto.scryptSync(password, salt, 64).toString('hex');
+}
+function sha256(s) { return crypto.createHash('sha256').update(s).digest('hex'); }
+function newToken(userId) {
+  const token = crypto.randomBytes(32).toString('hex');
+  q.insSession.run(sha256(token), userId, Date.now());
+  return token;
+}
+function safeEqual(a, b) {
+  const x = Buffer.from(a, 'hex'), y = Buffer.from(b, 'hex');
+  return x.length === y.length && crypto.timingSafeEqual(x, y);
+}
+
+// ---- login throttling (per IP) ----
+const THROTTLE_MAX = parseInt(process.env.SKIPPY_THROTTLE || '10', 10);
+const attempts = new Map();
+function throttled(ip) {
+  const now = Date.now();
+  const a = (attempts.get(ip) || []).filter(t => now - t < 60_000);
+  attempts.set(ip, a);
+  return a.length >= THROTTLE_MAX;
+}
+function noteAttempt(ip) { attempts.get(ip)?.push(Date.now()) ?? attempts.set(ip, [Date.now()]); }
+
+// ---- state ----
+const rooms = new Map(); // roomName -> Map(userId -> client)
+
+function publicUser(u) { return { id: u.id, name: u.name, callsign: u.callsign || '' }; }
+function send(c, obj) { if (c.ws.readyState === 1) c.ws.send(JSON.stringify(obj)); }
+function normRoom(r) { return String(r || '').trim().slice(0, 60).toLowerCase(); }
+function msgOut(m) {
+  return { id: m.id, room: m.room, userId: m.user_id, name: m.name, ts: m.ts, kind: m.kind,
+           text: m.text, fileName: m.file_name, fileSize: m.file_size };
+}
+
+function leaveRoom(c) {
+  if (!c.room) return;
+  const members = rooms.get(c.room);
+  if (members && members.get(c.user.id) === c) {
+    members.delete(c.user.id);
+    for (const p of members.values()) send(p, { t: 'peer-left', id: c.user.id });
+    if (members.size === 0) rooms.delete(c.room);
+  }
+  c.room = null;
+}
+
+function sendAuthed(c, user, token) {
+  c.user = user;
+  send(c, { t: 'authed', user: publicUser(user), token, rooms: q.recentRooms.all(user.id).map(r => r.room) });
+}
+
+function findUserForLogin(id) {
+  return q.userByName.get(id) || q.userByEmail.get(id) || q.userByCall.get(id);
+}
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+function handle(c, m) {
+  switch (m.t) {
+    case 'register': {
+      if (throttled(c.ip)) return send(c, { t: 'error', msg: 'Too many attempts, wait a minute.' });
+      const name = String(m.name || '').trim();
+      const email = String(m.email || '').trim();
+      const callsign = String(m.callsign || '').trim().toUpperCase() || null;
+      const password = String(m.password || '');
+      if (name.length < 2 || name.length > 40) return send(c, { t: 'error', msg: 'Name must be 2-40 characters.' });
+      if (!EMAIL_RE.test(email)) return send(c, { t: 'error', msg: 'Enter a valid email address.' });
+      if (callsign && !/^[A-Z0-9/]{3,12}$/.test(callsign)) return send(c, { t: 'error', msg: 'Callsign looks invalid.' });
+      if (password.length < 8) return send(c, { t: 'error', msg: 'Password must be at least 8 characters.' });
+      if (q.userByName.get(name) || q.userByEmail.get(email) || (callsign && q.userByCall.get(callsign)))
+        return send(c, { t: 'error', msg: 'That name, email or callsign is already registered.' });
+      noteAttempt(c.ip);
+      const salt = crypto.randomBytes(16).toString('hex');
+      const info = q.insUser.run(name, email, callsign, salt, hashPassword(password, salt), Date.now());
+      const user = q.userById.get(Number(info.lastInsertRowid));
+      return sendAuthed(c, user, newToken(user.id));
+    }
+    case 'login': {
+      if (throttled(c.ip)) return send(c, { t: 'error', msg: 'Too many attempts, wait a minute.' });
+      const user = findUserForLogin(String(m.id || '').trim());
+      const password = String(m.password || '');
+      if (!user || !safeEqual(user.hash, hashPassword(password, user.salt))) {
+        noteAttempt(c.ip); // only failures count toward the throttle
+        return send(c, { t: 'error', msg: 'Invalid login or password.' });
+      }
+      return sendAuthed(c, user, newToken(user.id));
+    }
+    case 'resume': {
+      const row = q.sessionUser.get(sha256(String(m.token || '')));
+      const user = row && q.userById.get(row.user_id);
+      if (!user) return send(c, { t: 'resume-failed' });
+      return sendAuthed(c, user, String(m.token));
+    }
+  }
+
+  if (!c.user) return send(c, { t: 'error', msg: 'Not logged in.' });
+
+  switch (m.t) {
+    case 'logout':
+      leaveRoom(c);
+      if (m.token) q.delSession.run(sha256(String(m.token)));
+      c.user = null;
+      return send(c, { t: 'logged-out' });
+    case 'join': {
+      const room = normRoom(m.room);
+      if (!room) return send(c, { t: 'error', msg: 'Enter a room name.' });
+      leaveRoom(c);
+      let members = rooms.get(room);
+      if (!members) rooms.set(room, members = new Map());
+      const existing = members.get(c.user.id);
+      if (existing && existing !== c) { // same account joining from a second window: replace the old one
+        leaveRoom(existing);
+        send(existing, { t: 'kicked', msg: 'You joined this room from another window.' });
+        members = rooms.get(room) || new Map();
+        rooms.set(room, members);
+      }
+      if (members.size >= MAX_PARTICIPANTS)
+        return send(c, { t: 'room-full', room, max: MAX_PARTICIPANTS });
+      const peers = [...members.values()].map(p => publicUser(p.user));
+      members.set(c.user.id, c);
+      c.room = room;
+      send(c, { t: 'joined', room, me: publicUser(c.user), peers, max: MAX_PARTICIPANTS,
+                history: q.history.all(room, HISTORY_LIMIT).map(msgOut) });
+      for (const p of members.values()) if (p !== c) send(p, { t: 'peer-joined', peer: publicUser(c.user) });
+      return;
+    }
+    case 'leave': return leaveRoom(c);
+    case 'history': {
+      const room = normRoom(m.room);
+      return send(c, { t: 'history', room, history: q.history.all(room, HISTORY_LIMIT).map(msgOut) });
+    }
+    case 'chat':
+    case 'file-announce': {
+      if (!c.room) return;
+      const isFile = m.t === 'file-announce';
+      const text = isFile ? null : String(m.text || '').slice(0, MAX_CHAT_LEN);
+      if (!isFile && !text.trim()) return;
+      const ts = Date.now();
+      const fileName = isFile ? String(m.fileName || '').slice(0, 200) : null;
+      const fileSize = isFile ? Math.max(0, Number(m.fileSize) || 0) : null;
+      const info = q.insMsg.run(c.room, c.user.id, c.user.name, ts, isFile ? 'file' : 'text', text, fileName, fileSize);
+      const out = { t: 'chat', msg: { id: Number(info.lastInsertRowid), room: c.room, userId: c.user.id,
+        name: c.user.name, ts, kind: isFile ? 'file' : 'text', text, fileName, fileSize,
+        fileId: isFile ? String(m.fileId || '') : undefined } };
+      for (const p of rooms.get(c.room).values()) send(p, out);
+      return;
+    }
+    case 'signal': {
+      if (!c.room) return;
+      const target = rooms.get(c.room)?.get(Number(m.to));
+      if (target) send(target, { t: 'signal', from: c.user.id, data: m.data });
+      return;
+    }
+  }
+}
+
+const server = http.createServer((req, res) => {
+  res.writeHead(200, { 'Content-Type': 'text/plain' });
+  res.end('Skippy server\n');
+});
+const wss = new WebSocketServer({ server, maxPayload: 256 * 1024 });
+
+wss.on('connection', (ws, req) => {
+  const c = { ws, user: null, room: null, ip: req.socket.remoteAddress };
+  ws.isAlive = true;
+  ws.on('pong', () => { ws.isAlive = true; });
+  ws.on('message', data => {
+    let m;
+    try { m = JSON.parse(data.toString()); } catch { return; }
+    if (!m || typeof m.t !== 'string') return;
+    try { handle(c, m); } catch (e) { console.error('handler error', e); send(c, { t: 'error', msg: 'Server error.' }); }
+  });
+  ws.on('close', () => leaveRoom(c));
+});
+
+setInterval(() => {
+  for (const ws of wss.clients) {
+    if (!ws.isAlive) { ws.terminate(); continue; }
+    ws.isAlive = false;
+    ws.ping();
+  }
+}, 20_000);
+
+server.listen(PORT, () => console.log(`Skippy server listening on :${PORT} (db: ${DB_PATH})`));

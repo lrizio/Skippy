@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; connect-src ws: wss:; media-src 'self' blob: mediastream:; img-src 'self' data: blob:; style-src 'self'; script-src 'self'">
+<title>Skippy</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- ===== Login / Register ===== -->
+<section id="screen-login" class="screen center">
+  <div class="card">
+    <h1 class="logo">Skippy</h1>
+    <p class="muted">Group video calls for up to 10 people</p>
+
+    <div class="tabs">
+      <button id="tab-login" class="active" type="button">Log in</button>
+      <button id="tab-register" type="button">Create account</button>
+    </div>
+
+    <form id="form-login" autocomplete="on">
+      <label>Name, email or callsign
+        <input id="login-id" type="text" autocomplete="username" required>
+      </label>
+      <label>Password
+        <input id="login-pw" type="password" autocomplete="current-password" required>
+      </label>
+      <button class="primary" type="submit">Log in</button>
+    </form>
+
+    <form id="form-register" class="hidden" autocomplete="off">
+      <label>Name
+        <input id="reg-name" type="text" maxlength="40" required>
+      </label>
+      <label>Email
+        <input id="reg-email" type="email" required>
+      </label>
+      <label>Callsign <span class="muted">(optional)</span>
+        <input id="reg-call" type="text" maxlength="12" placeholder="e.g. W1AW">
+      </label>
+      <label>Password <span class="muted">(8+ characters)</span>
+        <input id="reg-pw" type="password" minlength="8" required>
+      </label>
+      <button class="primary" type="submit">Create account</button>
+    </form>
+
+    <div id="login-error" class="error"></div>
+
+    <details class="server-box">
+      <summary>Server</summary>
+      <label>Server address
+        <input id="server-url" type="text" spellcheck="false">
+      </label>
+    </details>
+    <div class="version muted" id="version-login"></div>
+  </div>
+</section>
+
+<!-- ===== Lobby ===== -->
+<section id="screen-lobby" class="screen hidden">
+  <header class="topbar">
+    <span class="logo small">Skippy</span>
+    <span class="grow"></span>
+    <span class="who" id="who-lobby"></span>
+    <button class="ghost" id="btn-logout-lobby" type="button">Log out</button>
+  </header>
+  <div class="lobby">
+    <div class="lobby-left">
+      <div class="preview-wrap">
+        <video id="preview" autoplay muted playsinline></video>
+        <div id="preview-note" class="preview-note"></div>
+      </div>
+      <div class="device-grid">
+        <label>Microphone <select id="sel-mic"></select></label>
+        <label>Camera <select id="sel-cam"></select></label>
+        <label>Speaker <select id="sel-spk"></select></label>
+      </div>
+      <div class="meter"><div id="mic-level"></div></div>
+    </div>
+    <div class="lobby-right">
+      <h2>Join a room</h2>
+      <p class="muted">Anyone who enters the same room name joins the same call (max 10).</p>
+      <form id="form-join">
+        <input id="room-name" type="text" placeholder="Room name" maxlength="60" required>
+        <button class="primary" type="submit">Join</button>
+      </form>
+      <div id="join-error" class="error"></div>
+      <h3>Recent rooms</h3>
+      <div id="recent-rooms" class="recent"></div>
+    </div>
+  </div>
+  <div class="version muted" id="version-lobby"></div>
+</section>
+
+<!-- ===== Call ===== -->
+<section id="screen-call" class="screen hidden">
+  <header class="topbar">
+    <span class="logo small">Skippy</span>
+    <span class="room-title" id="call-room"></span>
+    <span class="count" id="call-count"></span>
+    <span class="grow"></span>
+    <span id="conn-banner" class="banner hidden">Reconnecting…</span>
+    <span class="who" id="who-call"></span>
+  </header>
+  <div class="call-body">
+    <div id="grid" class="grid"></div>
+    <aside class="side">
+      <div class="side-head">Chat</div>
+      <div id="chat-log" class="chat-log"></div>
+      <form id="chat-form" class="chat-form">
+        <button type="button" id="btn-attach" class="icon" title="Send a file to the group">📎</button>
+        <input id="file-input" type="file" class="hidden">
+        <input id="chat-input" type="text" placeholder="Type a message" maxlength="4000" autocomplete="off">
+        <button class="primary" type="submit">Send</button>
+      </form>
+    </aside>
+  </div>
+  <footer class="controls">
+    <button id="btn-mic" class="ctl" type="button">Mute</button>
+    <button id="btn-cam" class="ctl" type="button">Stop video</button>
+    <label class="ctl-select">Mic <select id="call-mic"></select></label>
+    <label class="ctl-select">Camera <select id="call-cam"></select></label>
+    <label class="ctl-select">Speaker <select id="call-spk"></select></label>
+    <span class="grow"></span>
+    <button id="btn-leave" class="danger" type="button">Leave</button>
+  </footer>
+</section>
+
+<div id="toast" class="toast hidden"></div>
+<script src="app.js"></script>
+</body>
+</html>
