@@ -1,7 +1,24 @@
 # Skippy
 
-Cross-platform group video conferencing (up to 10 participants), Skype-style.
-Electron desktop app + a small Node server.
+Group video calls for up to 10 people - audio, video, chat with history, file transfer and direct calls.
+Desktop app for Windows (installer provided), macOS and Linux (build from source), plus a small server you run for your group.
+
+## Download and install
+
+1. **Install the app** - download `Skippy-Setup-<version>.exe` from the [latest release](https://github.com/lrizio/Skippy/releases/latest) and run it.
+   Windows SmartScreen will say "unknown publisher" because the installer isn't code-signed: click *More info -> Run anyway*.
+2. **Get a server** - one person per group runs the Skippy server (everyone else just connects to it):
+   - Install [Node.js 22.5 or newer](https://nodejs.org/) (24+ recommended).
+   - Download `Skippy-Server-<version>.zip` from the same release, unzip it, and in that folder run:
+     ```
+     npm install
+     node server.js
+     ```
+     (on Windows you can then use `Start Skippy Server.bat`). It listens on port 8470 and keeps its data in `skippy.db`.
+   - Everyone must be able to reach that machine: same LAN, a VPN such as Tailscale, or port 8470 forwarded on the router.
+3. **First run** - start Skippy, open **Server** on the login screen, enter the server address (`ws://<host-ip>:8470`), choose **Create account**, log in, pick your camera/microphone and join a room.
+
+macOS/Linux: build the app yourself (`cd app && npm install && npm run dist` on that OS).
 
 ## What it does
 - **Accounts**: register with name, email and optional callsign + password (8+ chars). Log in with *any* of name / email / callsign.

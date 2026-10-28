@@ -147,17 +147,26 @@ ipcMain.handle('settings:save', (_e, patch) => {
   }
 });
 ipcMain.handle('autostart:set', (_e, on) => setAutostart(on));
-// Ask the Skippy server (same host as the websocket) whether a newer app version has been announced.
+// Newest-version lookup: the Skippy server's /update.json wins (a host can announce their own build);
+// otherwise ask the public GitHub releases.
+const GITHUB_REPO = 'lrizio/Skippy';
+async function fetchJson(url) {
+  const r = await fetch(url, { signal: AbortSignal.timeout(5000), headers: { 'User-Agent': 'Skippy', Accept: 'application/json' } });
+  return r.ok ? r.json() : null;
+}
 ipcMain.handle('update:check', async (_e, wsUrl) => {
   try {
     const u = new URL(String(wsUrl));
     u.protocol = u.protocol === 'wss:' ? 'https:' : 'http:';
     u.pathname = '/update.json'; u.search = '';
-    const r = await fetch(u, { signal: AbortSignal.timeout(5000) });
-    if (!r.ok) return null;
-    const j = await r.json();
-    return { version: String(j.version || ''), url: String(j.url || ''), notes: String(j.notes || '') };
-  } catch { return null; }
+    const j = await fetchJson(u);
+    if (j && j.version) return { version: String(j.version), url: String(j.url || ''), notes: String(j.notes || '') };
+  } catch { /* server unreachable or no update info: try GitHub */ }
+  try {
+    const j = await fetchJson(`https://api.github.com/repos/${GITHUB_REPO}/releases/latest`);
+    if (j && j.tag_name) return { version: String(j.tag_name).replace(/^v/, ''), url: String(j.html_url || ''), notes: '' };
+  } catch { /* offline */ }
+  return null;
 });
 ipcMain.handle('qr:make', (_e, text) => QRCode.toDataURL(String(text), { margin: 1, width: 220 }));
 ipcMain.on('open:external', (_e, url) => { if (/^https?:\/\//i.test(String(url))) shell.openExternal(String(url)); });

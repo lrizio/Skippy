@@ -15,24 +15,47 @@
       "main.js",
       "preload.js",
       "icon.png",
+      "icon.ico",
       "renderer/**/*",
       "package.json"
     ],
     "win": {
-      "target": "nsis"
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "icon.ico",
+      "artifactName": "Skippy-Setup-${version}.${ext}"
     },
     "mac": {
       "target": "dmg",
-      "category": "public.app-category.social-networking"
+      "category": "public.app-category.social-networking",
+      "artifactName": "Skippy-${version}.${ext}"
     },
     "linux": {
       "target": [
         "AppImage",
         "deb"
       ],
-      "category": "Network"
+      "category": "Network",
+      "artifactName": "Skippy-${version}.${ext}"
     },
-    "icon": "icon.png"
+    "icon": "icon.png",
+    "directories": {
+      "output": "dist"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Skippy"
+    }
   },
   "devDependencies": {
     "electron": "^45.1.0",
@@ -40,5 +63,12 @@
   },
   "dependencies": {
     "qrcode": "^1.5.4"
+  },
+  "author": "VK3EI",
+  "license": "MIT",
+  "homepage": "https://github.com/lrizio/Skippy",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/lrizio/Skippy.git"
   }
 }
