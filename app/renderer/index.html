@@ -8,6 +8,12 @@
 </head>
 <body>
 
+<div id="update-banner" class="update-banner hidden">
+  <span id="update-text"></span>
+  <button class="primary" id="btn-update-get" type="button">Download</button>
+  <button class="ghost" id="btn-update-dismiss" type="button">Later</button>
+</div>
+
 <!-- ===== Login / Register ===== -->
 <section id="screen-login" class="screen center">
   <div class="card">
@@ -53,6 +59,8 @@
         <input id="server-url" type="text" spellcheck="false">
       </label>
     </details>
+    <label class="chk"><input type="checkbox" id="chk-updates"> Check for updates on startup</label>
+    <label class="chk"><input type="checkbox" id="chk-autostart"> Start Skippy when I sign in to this computer</label>
     <div class="version muted" id="version-login"></div>
   </div>
 </section>
@@ -62,6 +70,7 @@
   <header class="topbar">
     <span class="logo small">Skippy</span>
     <span class="grow"></span>
+    <button class="ghost" id="btn-call-lobby" type="button">📞 Call someone</button>
     <span class="who" id="who-lobby"></span>
     <button class="ghost" id="btn-logout-lobby" type="button">Log out</button>
   </header>
@@ -101,6 +110,7 @@
     <span class="count" id="call-count"></span>
     <span class="grow"></span>
     <span id="conn-banner" class="banner hidden">Reconnecting…</span>
+    <button class="ghost" id="btn-call-call" type="button">📞 Call someone</button>
     <span class="who" id="who-call"></span>
   </header>
   <div class="call-body">
@@ -126,6 +136,34 @@
     <button id="btn-leave" class="danger" type="button">Leave</button>
   </footer>
 </section>
+
+<div id="modal-people" class="modal hidden">
+  <div class="modal-card">
+    <h2>People online</h2>
+    <div id="people-list" class="people"></div>
+    <form id="form-call-name" class="call-name">
+      <input id="call-name" type="text" placeholder="Call by name or callsign" autocomplete="off">
+      <button class="primary" type="submit">Call</button>
+    </form>
+    <div id="call-error" class="error"></div>
+    <button class="ghost" id="btn-people-close" type="button">Close</button>
+  </div>
+</div>
+<div id="modal-incoming" class="modal hidden">
+  <div class="modal-card center-text">
+    <h2 id="incoming-title"></h2>
+    <p class="muted">Incoming call</p>
+    <div class="row"><button class="primary" id="btn-accept" type="button">Accept</button>
+      <button class="danger" id="btn-decline" type="button">Decline</button></div>
+  </div>
+</div>
+<div id="modal-calling" class="modal hidden">
+  <div class="modal-card center-text">
+    <h2 id="calling-title"></h2>
+    <p class="muted">Ringing…</p>
+    <div class="row"><button class="danger" id="btn-cancel-call" type="button">Cancel</button></div>
+  </div>
+</div>
 
 <div id="toast" class="toast hidden"></div>
 <script src="app.js"></script>

@@ -1,5 +1,5 @@
 'use strict';
-const { app, BrowserWindow, ipcMain, session, safeStorage, shell } = require('electron');
+const { app, BrowserWindow, ipcMain, session, safeStorage, shell, Tray, Menu, nativeImage, dialog } = require('electron');
 const fs = require('fs');
 const path = require('path');
 
@@ -11,8 +11,14 @@ const DEFAULTS = {
   bounds: { width: 1280, height: 800 },
 };
 
+const ICON = path.join(__dirname, 'icon.png');
+const startHidden = process.argv.includes('--hidden');
+
 let settingsFile;
 let settings = { ...DEFAULTS };
+let win = null;
+let tray = null;
+let quitting = false;
 
 function loadSettings() {
   settingsFile = path.join(app.getPath('userData'), 'settings.json');
@@ -42,9 +48,95 @@ function writeToken(token) {
   }
 }
 
+// ---- start at OS login (hidden, straight to the tray) ----
+function getAutostart() { return app.getLoginItemSettings().openAtLogin; }
+function setAutostart(on) {
+  app.setLoginItemSettings({
+    openAtLogin: !!on,
+    path: process.execPath,
+    args: app.isPackaged ? ['--hidden'] : [app.getAppPath(), '--hidden'],
+  });
+  refreshTrayMenu();
+}
+
+// ---- window / tray ----
+function showWindow() {
+  if (!win) return createWindow();
+  if (win.isMinimized()) win.restore();
+  win.show();
+  win.focus();
+}
+function hideToTray() { win?.hide(); }
+
+function refreshTrayMenu() {
+  if (!tray) return;
+  tray.setContextMenu(Menu.buildFromTemplate([
+    { label: 'Open Skippy', click: showWindow },
+    { type: 'checkbox', label: 'Start when I sign in to this computer', checked: getAutostart(), click: i => setAutostart(i.checked) },
+    { type: 'separator' },
+    { label: 'Quit Skippy', click: () => { quitting = true; app.quit(); } },
+  ]));
+}
+function createTray() {
+  tray = new Tray(nativeImage.createFromPath(ICON).resize({ width: 16, height: 16 }));
+  tray.setToolTip('Skippy');
+  tray.on('click', showWindow);
+  refreshTrayMenu();
+}
+
+// ---- received files are streamed to a temp folder, never held in memory ----
+const incomingDir = () => path.join(app.getPath('userData'), 'incoming');
+const incoming = new Map(); // fileId -> { fd, file, written }
+const ID_RE = /^[0-9a-f-]{36}$/i;
+
+function clearIncoming() {
+  for (const f of incoming.values()) try { fs.closeSync(f.fd); } catch { /* ignore */ }
+  incoming.clear();
+  try { fs.rmSync(incomingDir(), { recursive: true, force: true }); } catch { /* ignore */ }
+}
+
+ipcMain.handle('file:open', (_e, id) => {
+  if (!ID_RE.test(id)) return false;
+  fs.mkdirSync(incomingDir(), { recursive: true });
+  const file = path.join(incomingDir(), id);
+  incoming.set(id, { fd: fs.openSync(file, 'w'), file, written: 0 });
+  return true;
+});
+ipcMain.on('file:write', (_e, id, data) => {
+  const f = incoming.get(id);
+  if (!f) return;
+  const buf = Buffer.from(data);
+  fs.writeSync(f.fd, buf, 0, buf.length, f.written);
+  f.written += buf.length;
+});
+ipcMain.handle('file:close', (_e, id) => {
+  const f = incoming.get(id);
+  if (!f) return 0;
+  fs.closeSync(f.fd);
+  f.fd = null;
+  return f.written;
+});
+ipcMain.handle('file:discard', (_e, id) => {
+  const f = incoming.get(id);
+  if (!f) return;
+  if (f.fd !== null) try { fs.closeSync(f.fd); } catch { /* ignore */ }
+  try { fs.rmSync(f.file, { force: true }); } catch { /* ignore */ }
+  incoming.delete(id);
+});
+ipcMain.handle('file:save', async (_e, id, name) => {
+  const f = incoming.get(id);
+  if (!f || f.fd !== null) return { ok: false, error: 'File is not available.' };
+  const defaultPath = path.join(app.getPath('downloads'), path.basename(String(name)));
+  const r = await dialog.showSaveDialog(win, { defaultPath });
+  if (r.canceled || !r.filePath) return { ok: false, canceled: true };
+  try { await fs.promises.copyFile(f.file, r.filePath); return { ok: true, path: r.filePath }; }
+  catch (e) { return { ok: false, error: e.message }; }
+});
+
+// ---- settings / window IPC ----
 ipcMain.handle('settings:load', () => {
   const { token, tokenEnc, ...rest } = settings;
-  return { ...rest, token: readToken(), version: app.getVersion() };
+  return { ...rest, token: readToken(), version: app.getVersion(), autostart: getAutostart() };
 });
 ipcMain.handle('settings:save', (_e, patch) => {
   if (patch && typeof patch === 'object') {
@@ -53,41 +145,73 @@ ipcMain.handle('settings:save', (_e, patch) => {
     saveSettings();
   }
 });
+ipcMain.handle('autostart:set', (_e, on) => setAutostart(on));
+// Ask the Skippy server (same host as the websocket) whether a newer app version has been announced.
+ipcMain.handle('update:check', async (_e, wsUrl) => {
+  try {
+    const u = new URL(String(wsUrl));
+    u.protocol = u.protocol === 'wss:' ? 'https:' : 'http:';
+    u.pathname = '/update.json'; u.search = '';
+    const r = await fetch(u, { signal: AbortSignal.timeout(5000) });
+    if (!r.ok) return null;
+    const j = await r.json();
+    return { version: String(j.version || ''), url: String(j.url || ''), notes: String(j.notes || '') };
+  } catch { return null; }
+});
+ipcMain.on('open:external', (_e, url) => { if (/^https?:\/\//i.test(String(url))) shell.openExternal(String(url)); });
+ipcMain.on('win:hide', hideToTray);
+ipcMain.on('win:show', showWindow);
 
 function createWindow() {
-  const win = new BrowserWindow({
+  win = new BrowserWindow({
     width: settings.bounds.width, height: settings.bounds.height,
     minWidth: 900, minHeight: 600,
     backgroundColor: '#0f1419',
-    title: 'Skippy',
+    title: `Skippy v${app.getVersion()}`,
+    icon: ICON,
+    show: !startHidden,
     autoHideMenuBar: true,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
+      backgroundThrottling: false, // keep calls and ringing alive while hidden in the tray
     },
   });
+  win.setTitle(`Skippy v${app.getVersion()}`);
+  win.on('page-title-updated', e => e.preventDefault()); // keep the version in the title bar
   win.loadFile(path.join(__dirname, 'renderer', 'index.html'));
-  win.on('close', () => {
+  win.on('close', e => {
     if (!win.isMaximized() && !win.isMinimized()) {
       const [width, height] = win.getSize();
       settings.bounds = { width, height };
       saveSettings();
     }
+    // Closing the window keeps Skippy running in the tray (calls can still come in). Quit from the tray menu.
+    if (!quitting) { e.preventDefault(); win.hide(); }
   });
+  win.on('closed', () => { win = null; });
   // Never navigate the app window away; open external links in the OS browser.
   win.webContents.setWindowOpenHandler(({ url }) => { if (/^https?:/.test(url)) shell.openExternal(url); return { action: 'deny' }; });
   win.webContents.on('will-navigate', e => e.preventDefault());
 }
 
-app.whenReady().then(() => {
-  loadSettings();
-  // Only camera/microphone/speaker-selection are needed by the renderer.
-  session.defaultSession.setPermissionRequestHandler((_wc, permission, cb) => cb(['media', 'speaker-selection'].includes(permission)));
-  session.defaultSession.setPermissionCheckHandler((_wc, permission) => ['media', 'speaker-selection'].includes(permission));
-  createWindow();
-  app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); });
-});
-
-app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });
+if (!app.requestSingleInstanceLock()) {
+  app.quit();
+} else {
+  app.on('second-instance', showWindow);
+  app.whenReady().then(() => {
+    loadSettings();
+    clearIncoming();
+    const allowed = ['media', 'speaker-selection', 'notifications'];
+    session.defaultSession.setPermissionRequestHandler((_wc, permission, cb) => cb(allowed.includes(permission)));
+    session.defaultSession.setPermissionCheckHandler((_wc, permission) => allowed.includes(permission));
+    createTray();
+    createWindow();
+    app.on('activate', showWindow);
+  });
+  app.on('before-quit', () => { quitting = true; clearIncoming(); });
+  // Stay alive in the tray when every window is hidden/closed.
+  app.on('window-all-closed', () => { /* keep running */ });
+}

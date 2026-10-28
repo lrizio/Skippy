@@ -1,7 +1,7 @@
 {
   "name": "skippy",
   "productName": "Skippy",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Skippy - group video conferencing for up to 10 participants",
   "main": "main.js",
   "scripts": {
@@ -14,6 +14,7 @@
     "files": [
       "main.js",
       "preload.js",
+      "icon.png",
       "renderer/**/*",
       "package.json"
     ],
@@ -30,7 +31,8 @@
         "deb"
       ],
       "category": "Network"
-    }
+    },
+    "icon": "icon.png"
   },
   "devDependencies": {
     "electron": "^45.1.0",

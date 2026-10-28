@@ -5,7 +5,7 @@ const $ = s => document.querySelector(s);
 const api = window.skippy;
 
 const CHUNK = 64 * 1024;
-const MAX_FILE = 200 * 1024 * 1024; // received files are held in memory, so cap them
+const MAX_FILE = 2 * 1024 * 1024 * 1024; // 2 GB; received files stream to disk, not memory
 
 let S = null;                 // persisted settings (from main process)
 let ws = null;
@@ -16,6 +16,9 @@ let room = null;              // current room name when in a call
 let wantedRoom = null;        // room to rejoin after a reconnect
 let loggedIn = false;
 let reconnectTimer = null;
+let online = [];              // users currently logged in (for direct calls)
+let dmWith = null;            // the other person in a direct call
+let incomingCall = null, outgoingCall = null;
 
 let localStream = null;
 let micOn = true, camOn = true;
@@ -32,7 +35,7 @@ function toast(msg) {
   const t = $('#toast'); t.textContent = msg; t.classList.remove('hidden');
   clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.add('hidden'), 4000);
 }
-const fmtSize = n => n < 1024 ? n + ' B' : n < 1048576 ? (n / 1024).toFixed(1) + ' KB' : (n / 1048576).toFixed(1) + ' MB';
+const fmtSize = n => n < 1024 ? n + ' B' : n < 1048576 ? (n / 1024).toFixed(1) + ' KB' : n < 1073741824 ? (n / 1048576).toFixed(1) + ' MB' : (n / 1073741824).toFixed(1) + ' GB';
 const fmtTime = ts => new Date(ts).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
 const uuid = () => crypto.randomUUID();
 
@@ -59,6 +62,7 @@ function onDisconnected() {
   $('#conn-banner').classList.remove('hidden');
   // The server dropped us from the room, so tear down media and rebuild after reconnect.
   if (room) wantedRoom = room;
+  clearCallUi();
   closeAllPeers();
   clearTimeout(reconnectTimer);
   reconnectTimer = setTimeout(reconnect, 3000);
@@ -95,6 +99,16 @@ function onServer(m) {
     }
     case 'chat': if (m.msg.room === room) addMessage(m.msg, true); return;
     case 'signal': return onSignal(m.from, m.data);
+    case 'presence': online = m.users; renderPeople(); return;
+    case 'calling': outgoingCall = m; $('#calling-title').textContent = `Calling ${m.to.name}…`; showModal('calling', true); ring('out'); return;
+    case 'call-failed':
+      outgoingCall = null; showModal('calling', false); stopRing();
+      $('#call-error').textContent = m.msg; toast(m.msg); return;
+    case 'incoming-call': return onIncomingCall(m);
+    case 'call-cancelled':
+      if (incomingCall?.callId === m.callId) { incomingCall = null; showModal('incoming', false); stopRing(); }
+      return;
+    case 'call-start': return startDirect(m);
     case 'kicked': wantedRoom = null; hardLeave(); toast(m.msg); showLobby(); return;
   }
 }
@@ -161,7 +175,9 @@ async function logout() {
   token = ''; me = null;
   await api.saveSettings({ token: '' }); // last login name stays so the field is prefilled next time
   if (ws) { ws.onclose = null; ws.close(); ws = null; }
+  clearCallUi(); online = [];
   showLogin();
+  api.hideToTray(); // Skippy keeps running in the system tray; click the tray icon to log in again
 }
 $('#btn-logout-lobby').onclick = logout;
 
@@ -314,7 +330,7 @@ function renderRecent(list) {
 }
 function joinRoom(name) {
   $('#join-error').textContent = '';
-  wantedRoom = name;
+  wantedRoom = name; dmWith = null;
   wsSend({ t: 'join', room: name });
 }
 $('#form-join').onsubmit = e => { e.preventDefault(); joinRoom($('#room-name').value.trim()); };
@@ -323,7 +339,7 @@ $('#form-join').onsubmit = e => { e.preventDefault(); joinRoom($('#room-name').v
 function onJoined(m) {
   room = m.room; wantedRoom = null;
   show('screen-call');
-  $('#call-room').textContent = '# ' + room;
+  $('#call-room').textContent = room.startsWith('@') ? '📞 ' + (dmWith ? dmWith.name : 'Direct call') : '# ' + room;
   $('#conn-banner').classList.add('hidden');
   roster.clear();
   roster.set(m.me.id, m.me);
@@ -464,6 +480,10 @@ function updateBitrates() {
 
 function closePeer(id) {
   const p = peers.get(id); if (!p) return;
+  if (p.incoming && !p.incoming.skip) { // transfer cut short
+    const { id: fid, f } = p.incoming;
+    f.failed = true; api.fileDiscard(fid); refreshFileEls(fid);
+  }
   p.dc?.close(); p.pc.close(); p.tile.remove();
   peers.delete(id);
   updateBitrates(); layoutGrid();
@@ -569,22 +589,26 @@ function onDataMessage(p, data) {
     if (m.k === 'state') { p.camOff = !m.cam; updatePeerVideo(p); return; }
     if (m.k === 'start') {
       if (typeof m.size !== 'number' || m.size > MAX_FILE) { p.incoming = { skip: true }; toast(`${p.user.name} sent a file that is too large; skipped.`); return; }
-      const f = { name: String(m.name).slice(0, 200), size: m.size, chunks: [], got: 0, done: false, from: p.user.name };
+      if (typeof m.id !== 'string' || !/^[0-9a-f-]{36}$/i.test(m.id)) return;
+      const f = { name: String(m.name).slice(0, 200), size: m.size, got: 0, done: false, from: p.user.name };
       files.set(m.id, f);
+      api.fileOpen(m.id); // main process streams it to a temp file
       p.incoming = { id: m.id, f };
       refreshFileEls(m.id);
     } else if (m.k === 'end' && p.incoming && !p.incoming.skip) {
       const { id, f } = p.incoming;
-      f.blob = new Blob(f.chunks); f.chunks = []; f.done = true;
       p.incoming = null;
-      refreshFileEls(id);
-      toast(`Received ${f.name} from ${p.user.name}`);
+      api.fileClose(id).then(n => {
+        if (n !== f.size) { f.failed = true; api.fileDiscard(id); } else f.done = true;
+        refreshFileEls(id);
+        if (f.done) toast(`Received ${f.name} from ${p.user.name}`);
+      });
     } else if (m.k === 'end') p.incoming = null;
     return;
   }
   const inc = p.incoming;
   if (!inc || inc.skip) return;
-  inc.f.chunks.push(data);
+  api.fileWrite(inc.id, data);
   inc.f.got += data.byteLength;
   if ((inc.f.got / CHUNK | 0) % 8 === 0) refreshFileEls(inc.id);
 }
@@ -611,6 +635,7 @@ function updateFileEl(el, fileId) {
     if (total && pct < 100) addBar(body, pct);
     return;
   }
+  if (f.failed) { status.textContent = 'Transfer interrupted.'; return; }
   if (!f.done) {
     const pct = f.size ? f.got / f.size * 100 : 0;
     status.textContent = `Receiving… ${pct.toFixed(0)}%`;
@@ -619,9 +644,9 @@ function updateFileEl(el, fileId) {
   }
   const a = document.createElement('a');
   a.textContent = 'Save';
-  a.onclick = () => {
-    f.url = f.url || URL.createObjectURL(f.blob);
-    const dl = document.createElement('a'); dl.href = f.url; dl.download = f.name; dl.click();
+  a.onclick = async () => {
+    const r = await api.fileSave(fileId, f.name);
+    if (r.ok) toast(`Saved to ${r.path}`); else if (!r.canceled) toast(r.error || 'Could not save the file.');
   };
   status.append('Received · ', a);
 }
@@ -631,12 +656,123 @@ function addBar(parent, pct) {
   bar.appendChild(inner); parent.appendChild(bar);
 }
 
+// ---------- direct calls ----------
+function showModal(which, on) { $('#modal-' + which).classList.toggle('hidden', !on); }
+function clearCallUi() {
+  incomingCall = outgoingCall = null; stopRing();
+  for (const m of ['incoming', 'calling', 'people']) showModal(m, false);
+}
+
+let ringCtx = null, ringTimer = null;
+function ring(kind) {
+  stopRing();
+  try {
+    const ctx = ringCtx = new AudioContext();
+    if (ctx.setSinkId && S.devices.spk) ctx.setSinkId(S.devices.spk).catch(() => {});
+    const beep = () => {
+      const o = ctx.createOscillator(), g = ctx.createGain();
+      o.frequency.value = kind === 'in' ? 880 : 440; g.gain.value = 0.12;
+      o.connect(g); g.connect(ctx.destination); o.start(); o.stop(ctx.currentTime + 0.35);
+    };
+    beep();
+    ringTimer = setInterval(beep, kind === 'in' ? 1400 : 2500);
+  } catch { /* no audio output */ }
+}
+function stopRing() {
+  clearInterval(ringTimer); ringTimer = null;
+  if (ringCtx) { ringCtx.close().catch(() => {}); ringCtx = null; }
+}
+
+function renderPeople() {
+  const box = $('#people-list'); box.innerHTML = '';
+  const others = online.filter(u => !me || u.id !== me.id);
+  if (!others.length) { box.textContent = 'Nobody else is online.'; box.classList.add('muted'); return; }
+  box.classList.remove('muted');
+  for (const u of others) {
+    const row = document.createElement('div'); row.className = 'person';
+    const nm = document.createElement('span'); nm.textContent = u.name + (u.callsign ? ` (${u.callsign})` : '');
+    const b = document.createElement('button'); b.className = 'primary'; b.type = 'button'; b.textContent = 'Call';
+    b.onclick = () => placeCall(u.id);
+    row.append(nm, b); box.appendChild(row);
+  }
+}
+function placeCall(to) {
+  $('#call-error').textContent = '';
+  showModal('people', false);
+  wsSend({ t: 'call', to });
+}
+function openPeople() { $('#call-error').textContent = ''; renderPeople(); showModal('people', true); }
+$('#btn-call-lobby').onclick = $('#btn-call-call').onclick = openPeople;
+$('#btn-people-close').onclick = () => showModal('people', false);
+$('#form-call-name').onsubmit = e => {
+  e.preventDefault();
+  const v = $('#call-name').value.trim();
+  if (v) { $('#call-name').value = ''; placeCall(v); }
+};
+$('#btn-cancel-call').onclick = () => {
+  if (outgoingCall) wsSend({ t: 'call-cancel', callId: outgoingCall.callId });
+  outgoingCall = null; showModal('calling', false); stopRing();
+};
+
+function onIncomingCall(m) {
+  if (incomingCall) return wsSend({ t: 'call-answer', callId: m.callId, accept: false }); // already ringing: decline the second
+  incomingCall = m;
+  $('#incoming-title').textContent = m.from.name + (m.from.callsign ? ` (${m.from.callsign})` : '');
+  showModal('incoming', true);
+  ring('in');
+  api.showWindow(); // bring Skippy out of the tray
+  try { new Notification('Skippy', { body: `Incoming call from ${m.from.name}` }); } catch { /* ignore */ }
+}
+$('#btn-accept').onclick = () => {
+  if (!incomingCall) return;
+  wsSend({ t: 'call-answer', callId: incomingCall.callId, accept: true });
+  incomingCall = null; showModal('incoming', false); stopRing();
+};
+$('#btn-decline').onclick = () => {
+  if (!incomingCall) return;
+  wsSend({ t: 'call-answer', callId: incomingCall.callId, accept: false });
+  incomingCall = null; showModal('incoming', false); stopRing();
+};
+
+function startDirect(m) {
+  outgoingCall = null; showModal('calling', false); showModal('incoming', false); stopRing();
+  dmWith = m.with;
+  closeAllPeers(); // leave whatever room we were in; the server moves us when we join
+  wantedRoom = m.room;
+  wsSend({ t: 'join', room: m.room });
+}
+
+// ---------- update check ----------
+function newer(a, b) { // is version a newer than b?
+  const x = a.split('.').map(Number), y = b.split('.').map(Number);
+  for (let i = 0; i < Math.max(x.length, y.length); i++) {
+    const d = (x[i] || 0) - (y[i] || 0);
+    if (d) return d > 0;
+  }
+  return false;
+}
+async function checkForUpdates() {
+  if (S.checkUpdates === false) return;
+  const info = await api.checkUpdate(($('#server-url').value || S.serverUrl).trim());
+  if (!info || !info.version || !newer(info.version, S.version)) return;
+  $('#update-text').textContent = `Skippy ${info.version} is available (you have ${S.version}).` + (info.notes ? ' ' + info.notes : '');
+  $('#btn-update-get').classList.toggle('hidden', !info.url);
+  $('#btn-update-get').onclick = () => api.openExternal(info.url);
+  $('#btn-update-dismiss').onclick = () => $('#update-banner').classList.add('hidden');
+  $('#update-banner').classList.remove('hidden');
+}
+
 // ---------- startup ----------
 (async function init() {
   S = await api.loadSettings();
   S.devices = { mic: '', cam: '', spk: '', ...(S.devices || {}) };
   S.iceServers = S.iceServers || [{ urls: 'stun:stun.l.google.com:19302' }];
   $('#server-url').value = S.serverUrl;
+  $('#chk-updates').checked = S.checkUpdates !== false;
+  $('#chk-updates').onchange = e => { S.checkUpdates = e.target.checked; api.saveSettings({ checkUpdates: e.target.checked }); };
+  checkForUpdates();
+  $('#chk-autostart').checked = !!S.autostart;
+  $('#chk-autostart').onchange = e => api.setAutostart(e.target.checked);
   for (const id of ['#version-login', '#version-lobby']) $(id).textContent = 'Skippy v' + S.version;
   $('#login-id').value = S.lastLogin || '';
 

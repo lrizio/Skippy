@@ -1,6 +1,7 @@
 'use strict';
 // Skippy server: accounts, session tokens, room signaling (max 10 per room) and chat history.
 const http = require('http');
+const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const { DatabaseSync } = require('node:sqlite');
@@ -56,7 +57,7 @@ const q = {
   insMsg: db.prepare('INSERT INTO messages (room,user_id,name,ts,kind,text,file_name,file_size) VALUES (?,?,?,?,?,?,?,?)'),
   history: db.prepare('SELECT * FROM (SELECT * FROM messages WHERE room = ? ORDER BY id DESC LIMIT ?) ORDER BY id ASC'),
   recentRooms: db.prepare(
-    'SELECT room, MAX(id) AS last FROM messages WHERE room IN (SELECT DISTINCT room FROM messages WHERE user_id = ?) GROUP BY room ORDER BY last DESC LIMIT 12'
+    "SELECT room, MAX(id) AS last FROM messages WHERE room NOT LIKE '@%' AND room IN (SELECT DISTINCT room FROM messages WHERE user_id = ?) GROUP BY room ORDER BY last DESC LIMIT 12"
   ),
 };
 
@@ -88,6 +89,44 @@ function noteAttempt(ip) { attempts.get(ip)?.push(Date.now()) ?? attempts.set(ip
 
 // ---- state ----
 const rooms = new Map(); // roomName -> Map(userId -> client)
+const online = new Map(); // userId -> Set(client): everyone currently logged in
+const calls = new Map();  // callId -> { from, fromConn, toId, timer }
+const CALL_TIMEOUT_MS = parseInt(process.env.SKIPPY_CALL_TIMEOUT || '45000', 10);
+
+// Direct calls happen in a private two-person room named after the pair of user ids.
+const dmRoom = (a, b) => `@${Math.min(a, b)}-${Math.max(a, b)}`;
+function dmAllowed(room, userId) {
+  const m = /^@(\d+)-(\d+)$/.exec(room);
+  return !!m && (Number(m[1]) === userId || Number(m[2]) === userId);
+}
+
+function broadcastPresence() {
+  const users = [...online.values()].map(set => publicUser([...set][0].user));
+  for (const set of online.values()) for (const c of set) send(c, { t: 'presence', users });
+}
+function goOnline(c) {
+  if (!online.has(c.user.id)) online.set(c.user.id, new Set());
+  online.get(c.user.id).add(c);
+  broadcastPresence();
+}
+function goOffline(c) {
+  if (!c.user) return;
+  const set = online.get(c.user.id);
+  if (set) { set.delete(c); if (!set.size) online.delete(c.user.id); }
+  // drop any calls this connection was part of
+  for (const [id, call] of [...calls]) {
+    if (call.fromConn === c) finishCall(id, null, { t: 'call-cancelled', callId: id });
+    else if (call.toId === c.user.id && !online.has(c.user.id))
+      finishCall(id, { t: 'call-failed', msg: `${c.user.name} went offline.` }, null);
+  }
+  broadcastPresence();
+}
+function finishCall(id, callerMsg, calleeMsg) {
+  const call = calls.get(id); if (!call) return;
+  clearTimeout(call.timer); calls.delete(id);
+  if (callerMsg) send(call.fromConn, callerMsg);
+  if (calleeMsg) for (const t of online.get(call.toId) || []) send(t, calleeMsg);
+}
 
 function publicUser(u) { return { id: u.id, name: u.name, callsign: u.callsign || '' }; }
 function send(c, obj) { if (c.ws.readyState === 1) c.ws.send(JSON.stringify(obj)); }
@@ -109,8 +148,10 @@ function leaveRoom(c) {
 }
 
 function sendAuthed(c, user, token) {
+  if (c.user) goOffline(c);
   c.user = user;
   send(c, { t: 'authed', user: publicUser(user), token, rooms: q.recentRooms.all(user.id).map(r => r.room) });
+  goOnline(c);
 }
 
 function findUserForLogin(id) {
@@ -163,11 +204,14 @@ function handle(c, m) {
     case 'logout':
       leaveRoom(c);
       if (m.token) q.delSession.run(sha256(String(m.token)));
+      goOffline(c);
       c.user = null;
       return send(c, { t: 'logged-out' });
     case 'join': {
       const room = normRoom(m.room);
       if (!room) return send(c, { t: 'error', msg: 'Enter a room name.' });
+      if (room.startsWith('@') && !dmAllowed(room, c.user.id))
+        return send(c, { t: 'error', msg: 'That is a private call room.' });
       leaveRoom(c);
       let members = rooms.get(room);
       if (!members) rooms.set(room, members = new Map());
@@ -189,6 +233,39 @@ function handle(c, m) {
       return;
     }
     case 'leave': return leaveRoom(c);
+    case 'call': {
+      const ident = String(m.to ?? '').trim();
+      const target = typeof m.to === 'number' ? q.userById.get(m.to)
+        : (q.userByName.get(ident) || q.userByCall.get(ident.toUpperCase()));
+      if (!target) return send(c, { t: 'call-failed', msg: 'No user with that name or callsign.' });
+      if (target.id === c.user.id) return send(c, { t: 'call-failed', msg: "You can't call yourself." });
+      const conns = online.get(target.id);
+      if (!conns || !conns.size) return send(c, { t: 'call-failed', msg: `${target.name} is not online.` });
+      for (const x of calls.values()) if (x.fromConn === c) return send(c, { t: 'call-failed', msg: 'You are already calling someone.' });
+      const callId = crypto.randomUUID();
+      const timer = setTimeout(() => finishCall(callId,
+        { t: 'call-failed', msg: `${target.name} did not answer.` }, { t: 'call-cancelled', callId }), CALL_TIMEOUT_MS);
+      calls.set(callId, { from: c.user, fromConn: c, toId: target.id, timer });
+      send(c, { t: 'calling', callId, to: publicUser(target) });
+      for (const t of conns) send(t, { t: 'incoming-call', callId, from: publicUser(c.user) });
+      return;
+    }
+    case 'call-cancel': {
+      const call = calls.get(m.callId);
+      if (call && call.fromConn === c) finishCall(m.callId, null, { t: 'call-cancelled', callId: m.callId });
+      return;
+    }
+    case 'call-answer': {
+      const call = calls.get(m.callId);
+      if (!call || call.toId !== c.user.id) return;
+      if (!m.accept) return finishCall(m.callId, { t: 'call-failed', msg: `${c.user.name} declined the call.` }, { t: 'call-cancelled', callId: m.callId });
+      const room = dmRoom(call.from.id, c.user.id);
+      clearTimeout(call.timer); calls.delete(m.callId);
+      send(call.fromConn, { t: 'call-start', room, with: publicUser(c.user) });
+      send(c, { t: 'call-start', room, with: publicUser(call.from) });
+      for (const t of online.get(c.user.id) || []) if (t !== c) send(t, { t: 'call-cancelled', callId: m.callId });
+      return;
+    }
     case 'history': {
       const room = normRoom(m.room);
       return send(c, { t: 'history', room, history: q.history.all(room, HISTORY_LIMIT).map(msgOut) });
@@ -218,7 +295,21 @@ function handle(c, m) {
   }
 }
 
+// GET /update.json tells clients the newest app version. Edit update.json next to this file to announce a release:
+// { "version": "1.2.0", "url": "https://where-to-download", "notes": "what changed" }
+const UPDATE_FILE = process.env.SKIPPY_UPDATE_FILE || path.join(__dirname, 'update.json');
 const server = http.createServer((req, res) => {
+  if (req.url === '/update.json') {
+    try {
+      const body = fs.readFileSync(UPDATE_FILE, 'utf8');
+      JSON.parse(body);
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      return res.end(body);
+    } catch {
+      res.writeHead(404, { 'Content-Type': 'text/plain' });
+      return res.end('No update information\n');
+    }
+  }
   res.writeHead(200, { 'Content-Type': 'text/plain' });
   res.end('Skippy server\n');
 });
@@ -234,7 +325,7 @@ wss.on('connection', (ws, req) => {
     if (!m || typeof m.t !== 'string') return;
     try { handle(c, m); } catch (e) { console.error('handler error', e); send(c, { t: 'error', msg: 'Server error.' }); }
   });
-  ws.on('close', () => leaveRoom(c));
+  ws.on('close', () => { leaveRoom(c); goOffline(c); });
 });
 
 setInterval(() => {

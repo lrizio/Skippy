@@ -9,7 +9,10 @@ Electron desktop app + a small Node server.
 - **Rooms**: type a room name to create/join it. Hard cap of 10 per room (enforced by the server).
 - **Audio/video devices**: choose microphone, camera and speaker in the lobby or live during a call; choices are remembered. Mute / stop-video buttons; hot-plugged devices are picked up.
 - **Chat with history**: messages and file notices are stored per room on the server (last 200 shown on join).
-- **File transfer**: the paperclip sends a file (max 200 MB) directly to everyone in the call over WebRTC data channels. Receivers get a Save link. Files are only delivered to people present at the time; history keeps the file *name*, not the content.
+- **File transfer**: the paperclip sends a file (max **2 GB**) directly to everyone in the call over WebRTC data channels. Received files stream to a temp folder on disk (not memory); the Save link copies them where you choose. Files are only delivered to people present at the time; history keeps the file *name*, not the content.
+- **Direct calls**: **📞 Call someone** (lobby or in a call) lists who is online - click Call, or type a name/callsign. They get a ringing dialog (and the window pops up from the tray); Accept opens a private two-person room (with its own chat history). Rings for 45 s. You can only call people who are logged in.
+- **Runs in the background**: closing the window or logging out hides Skippy to the system tray instead of quitting; click the tray icon to reopen, or use *Quit Skippy* there. While logged in it keeps its server connection, so calls still ring. Tick *Start Skippy when I sign in to this computer* (login screen or tray menu) to launch hidden at sign-in. (This is a tray app, not an OS service; logged-out users cannot receive calls.)
+- **Version + updates**: the version is in the title bar and on the login screen. On startup the app asks the server for `/update.json`; if it announces a newer version a banner offers a download link. To announce a release, edit `server/update.json` (`version`, `url`, `notes`). Opt out with *Check for updates on startup*.
 
 ## Run it
 1. Start the server: `Start Skippy Server.bat` (or `cd server && npm start`). Listens on port 8470, data in `server/skippy.db`.
@@ -25,6 +28,7 @@ First time: `npm install` in both `server/` and `app/`, then `node app/node_modu
 - **Topology is a full mesh**: each participant sends video to each other participant. Fine for small groups; bitrate is lowered automatically as the room fills (800 kbps -> 400 -> 200 kbps per stream). 10 people on a weak uplink will struggle.
 - **Internet use**: STUN (Google's public server) is configured by default, which handles most home NATs. Some networks need a TURN relay: add it to `iceServers` in the app's `settings.json` (in the Electron userData folder).
 - **Security**: passwords are scrypt-hashed server-side. Over the internet, put the server behind TLS (e.g. a reverse proxy) and use `wss://` in the Server field - plain `ws://` sends the password unencrypted. Media is always DTLS-SRTP encrypted by WebRTC. There is no password reset yet.
+- Direct-call rooms are private to the two users; the server rejects anyone else.
 - Settings file: `%APPDATA%\skippy\settings.json` (Windows).
 
 ## Tests
