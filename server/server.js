@@ -6,6 +6,7 @@ const path = require('path');
 const crypto = require('crypto');
 const { DatabaseSync } = require('node:sqlite');
 const { WebSocketServer } = require('ws');
+const totp = require('./totp');
 
 const PORT = parseInt(process.env.PORT || '8470', 10);
 const DB_PATH = process.env.SKIPPY_DB || path.join(__dirname, 'skippy.db');
@@ -45,7 +46,20 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS messages_room ON messages(room, id);
 `);
 
+// two-factor columns / table (added after v1.1, so migrate older databases in place)
+if (!db.prepare('PRAGMA table_info(users)').all().some(c => c.name === 'totp_secret'))
+  db.exec(`ALTER TABLE users ADD COLUMN totp_secret TEXT;
+           ALTER TABLE users ADD COLUMN totp_enabled INTEGER NOT NULL DEFAULT 0;
+           ALTER TABLE users ADD COLUMN totp_last INTEGER NOT NULL DEFAULT 0;`);
+db.exec('CREATE TABLE IF NOT EXISTS backup_codes (user_id INTEGER NOT NULL, code_hash TEXT NOT NULL, PRIMARY KEY (user_id, code_hash))');
+
 const q = {
+  setTotp: db.prepare('UPDATE users SET totp_secret = ?, totp_enabled = 1, totp_last = ? WHERE id = ?'),
+  clearTotp: db.prepare('UPDATE users SET totp_secret = NULL, totp_enabled = 0, totp_last = 0 WHERE id = ?'),
+  setTotpLast: db.prepare('UPDATE users SET totp_last = ? WHERE id = ?'),
+  insBackup: db.prepare('INSERT INTO backup_codes (user_id, code_hash) VALUES (?, ?)'),
+  delBackups: db.prepare('DELETE FROM backup_codes WHERE user_id = ?'),
+  useBackup: db.prepare('DELETE FROM backup_codes WHERE user_id = ? AND code_hash = ?'),
   userByName: db.prepare('SELECT * FROM users WHERE name = ?'),
   userByEmail: db.prepare('SELECT * FROM users WHERE email = ?'),
   userByCall: db.prepare('SELECT * FROM users WHERE callsign = ?'),
@@ -74,6 +88,28 @@ function newToken(userId) {
 function safeEqual(a, b) {
   const x = Buffer.from(a, 'hex'), y = Buffer.from(b, 'hex');
   return x.length === y.length && crypto.timingSafeEqual(x, y);
+}
+
+// ---- second factor: an authenticator code, or a one-time backup code ----
+const backupHash = code => sha256(String(code).toLowerCase().replace(/[^a-z0-9]/g, ''));
+function checkSecondFactor(user, code) {
+  code = String(code || '');
+  if (/^\s*\d{3}\s?\d{3}\s*$/.test(code) && user.totp_secret) {
+    const step = totp.verify(user.totp_secret, code, user.totp_last);
+    if (step) { q.setTotpLast.run(step, user.id); return true; } // a code can only be used once
+    return false;
+  }
+  return Number(q.useBackup.run(user.id, backupHash(code)).changes) > 0;
+}
+function newBackupCodes(userId) {
+  q.delBackups.run(userId);
+  const codes = [];
+  for (let i = 0; i < 10; i++) {
+    const raw = crypto.randomBytes(5).toString('hex');
+    codes.push(raw.slice(0, 5) + '-' + raw.slice(5));
+    q.insBackup.run(userId, backupHash(raw));
+  }
+  return codes;
 }
 
 // ---- login throttling (per IP) ----
@@ -150,7 +186,7 @@ function leaveRoom(c) {
 function sendAuthed(c, user, token) {
   if (c.user) goOffline(c);
   c.user = user;
-  send(c, { t: 'authed', user: publicUser(user), token, rooms: q.recentRooms.all(user.id).map(r => r.room) });
+  send(c, { t: 'authed', user: publicUser(user), totp: !!user.totp_enabled, token, rooms: q.recentRooms.all(user.id).map(r => r.room) });
   goOnline(c);
 }
 
@@ -188,7 +224,21 @@ function handle(c, m) {
         noteAttempt(c.ip); // only failures count toward the throttle
         return send(c, { t: 'error', msg: 'Invalid login or password.' });
       }
+      if (user.totp_enabled) {
+        c.pendingTotp = { userId: user.id, expires: Date.now() + 5 * 60_000, fails: 0 };
+        return send(c, { t: 'totp-required' });
+      }
       return sendAuthed(c, user, newToken(user.id));
+    }
+    case 'login-totp': {
+      if (throttled(c.ip)) return send(c, { t: 'error', msg: 'Too many attempts, wait a minute.' });
+      const pend = c.pendingTotp;
+      if (!pend || pend.expires < Date.now()) { c.pendingTotp = null; return send(c, { t: 'totp-expired' }); }
+      const user = q.userById.get(pend.userId);
+      if (user && checkSecondFactor(user, m.code)) { c.pendingTotp = null; return sendAuthed(c, user, newToken(user.id)); }
+      noteAttempt(c.ip);
+      if (++pend.fails >= 5) { c.pendingTotp = null; return send(c, { t: 'totp-expired' }); }
+      return send(c, { t: 'error', msg: 'That code is not valid.' });
     }
     case 'resume': {
       const row = q.sessionUser.get(sha256(String(m.token || '')));
@@ -233,6 +283,31 @@ function handle(c, m) {
       return;
     }
     case 'leave': return leaveRoom(c);
+    case 'totp-setup': {
+      if (q.userById.get(c.user.id).totp_enabled) return send(c, { t: 'error', msg: 'Two-factor is already on.' });
+      c.pendingSecret = totp.newSecret();
+      return send(c, { t: 'totp-setup', secret: c.pendingSecret, uri: totp.otpauthUri(c.pendingSecret, c.user.name) });
+    }
+    case 'totp-enable': {
+      if (!c.pendingSecret) return send(c, { t: 'error', msg: 'Start the setup again.' });
+      if (throttled(c.ip)) return send(c, { t: 'error', msg: 'Too many attempts, wait a minute.' });
+      const step = totp.verify(c.pendingSecret, m.code);
+      if (!step) { noteAttempt(c.ip); return send(c, { t: 'error', msg: 'That code does not match - check your authenticator and try again.' }); }
+      q.setTotp.run(c.pendingSecret, step, c.user.id);
+      c.pendingSecret = null;
+      return send(c, { t: 'totp-enabled', backupCodes: newBackupCodes(c.user.id) });
+    }
+    case 'totp-disable': {
+      if (throttled(c.ip)) return send(c, { t: 'error', msg: 'Too many attempts, wait a minute.' });
+      const user = q.userById.get(c.user.id);
+      if (!user.totp_enabled) return send(c, { t: 'totp-disabled' });
+      if (!safeEqual(user.hash, hashPassword(String(m.password || ''), user.salt)) || !checkSecondFactor(user, m.code)) {
+        noteAttempt(c.ip);
+        return send(c, { t: 'error', msg: 'Password or code is wrong.' });
+      }
+      q.clearTotp.run(user.id); q.delBackups.run(user.id);
+      return send(c, { t: 'totp-disabled' });
+    }
     case 'call': {
       const ident = String(m.to ?? '').trim();
       const target = typeof m.to === 'number' ? q.userById.get(m.to)

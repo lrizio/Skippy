@@ -1,6 +1,7 @@
 'use strict';
 const { app, BrowserWindow, ipcMain, session, safeStorage, shell, Tray, Menu, nativeImage, dialog } = require('electron');
 const fs = require('fs');
+const QRCode = require('qrcode');
 const path = require('path');
 
 const DEFAULTS = {
@@ -158,6 +159,7 @@ ipcMain.handle('update:check', async (_e, wsUrl) => {
     return { version: String(j.version || ''), url: String(j.url || ''), notes: String(j.notes || '') };
   } catch { return null; }
 });
+ipcMain.handle('qr:make', (_e, text) => QRCode.toDataURL(String(text), { margin: 1, width: 220 }));
 ipcMain.on('open:external', (_e, url) => { if (/^https?:\/\//i.test(String(url))) shell.openExternal(String(url)); });
 ipcMain.on('win:hide', hideToTray);
 ipcMain.on('win:show', showWindow);

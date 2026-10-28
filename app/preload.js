@@ -5,6 +5,7 @@ contextBridge.exposeInMainWorld('skippy', {
   loadSettings: () => ipcRenderer.invoke('settings:load'),
   saveSettings: patch => ipcRenderer.invoke('settings:save', patch),
   setAutostart: on => ipcRenderer.invoke('autostart:set', on),
+  makeQr: text => ipcRenderer.invoke('qr:make', text),
   checkUpdate: wsUrl => ipcRenderer.invoke('update:check', wsUrl),
   openExternal: url => ipcRenderer.send('open:external', url),
   hideToTray: () => ipcRenderer.send('win:hide'),

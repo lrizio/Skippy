@@ -51,6 +51,15 @@
       <button class="primary" type="submit">Create account</button>
     </form>
 
+    <form id="form-totp" class="hidden" autocomplete="off">
+      <p class="muted">Two-factor authentication is on for this account.</p>
+      <label>Authentication code <span class="muted">(or a backup code)</span>
+        <input id="totp-code" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="20" required>
+      </label>
+      <button class="primary" type="submit">Verify</button>
+      <button class="ghost wide" id="btn-totp-back" type="button">Back</button>
+    </form>
+
     <div id="login-error" class="error"></div>
 
     <details class="server-box">
@@ -71,6 +80,7 @@
     <span class="logo small">Skippy</span>
     <span class="grow"></span>
     <button class="ghost" id="btn-call-lobby" type="button">📞 Call someone</button>
+    <button class="ghost" id="btn-security" type="button">🔒 Security</button>
     <span class="who" id="who-lobby"></span>
     <button class="ghost" id="btn-logout-lobby" type="button">Log out</button>
   </header>
@@ -147,6 +157,46 @@
     </form>
     <div id="call-error" class="error"></div>
     <button class="ghost" id="btn-people-close" type="button">Close</button>
+  </div>
+</div>
+<div id="modal-security" class="modal hidden">
+  <div class="modal-card">
+    <h2>Two-factor authentication</h2>
+
+    <div id="sec-off" class="hidden">
+      <p class="muted">Add a second step to logging in: a 6-digit code from an authenticator app (Google Authenticator, Microsoft Authenticator, Authy, 1Password…). It is optional.</p>
+      <button class="primary" id="btn-sec-start" type="button">Turn on</button>
+    </div>
+
+    <div id="sec-setup" class="hidden">
+      <p class="muted">1. Scan this QR code with your authenticator app (or type the key in by hand).</p>
+      <div class="center-text"><img id="sec-qr" alt="QR code" width="220" height="220"></div>
+      <p class="mono" id="sec-secret"></p>
+      <form id="form-sec-enable">
+        <label>2. Enter the 6-digit code it shows
+          <input id="sec-code" type="text" inputmode="numeric" autocomplete="off" maxlength="7" required>
+        </label>
+        <button class="primary" type="submit">Turn on</button>
+      </form>
+    </div>
+
+    <div id="sec-codes" class="hidden">
+      <p><b>Two-factor is on.</b> Save these backup codes somewhere safe. Each works once if you lose your phone. They will not be shown again.</p>
+      <pre id="sec-codes-list" class="mono codes"></pre>
+      <button class="ghost" id="btn-sec-copy" type="button">Copy codes</button>
+    </div>
+
+    <div id="sec-on" class="hidden">
+      <p>Two-factor authentication is <b>on</b>.</p>
+      <form id="form-sec-disable">
+        <label>Password <input id="sec-pw" type="password" autocomplete="current-password" required></label>
+        <label>Authentication code or backup code <input id="sec-dcode" type="text" autocomplete="off" required></label>
+        <button class="danger wide" type="submit">Turn off</button>
+      </form>
+    </div>
+
+    <div id="sec-error" class="error"></div>
+    <button class="ghost" id="btn-sec-close" type="button">Close</button>
   </div>
 </div>
 <div id="modal-incoming" class="modal hidden">

@@ -1,6 +1,7 @@
 // Integration test: starts the server on a temp DB and exercises auth, rooms, cap, history.
 const { spawn } = require('child_process');
 const WebSocket = require('ws');
+const totp = require('./totp');
 const os = require('os'), path = require('path'), fs = require('fs');
 const db = path.join(os.tmpdir(), 'skippy-test-' + Date.now() + '.db');
 const srv = spawn(process.execPath, ['server.js'], { env: { ...process.env, PORT: '8494', SKIPPY_THROTTLE: '1000', SKIPPY_CALL_TIMEOUT: '1500', SKIPPY_DB: db }, stdio: 'inherit' });
@@ -100,5 +101,53 @@ function client() {
   assert((await u4.until('call-cancelled')) !== null, 'callee ring cancelled on timeout');
   const hist2 = await (async () => { a.send({ t: 'history', room: s1.room }); return a.until('history'); })();
   assert(Array.isArray(hist2.history), 'direct-room history query works');
+
+  // ---- two-factor (TOTP) ----
+  // RFC 6238 test vector: secret "12345678901234567890", T=59s -> 94287082 (8 digits) -> 287082 (6 digits)
+  const rfcSecret = totp.base32Encode(Buffer.from('12345678901234567890'));
+  assert(totp.codeAt(rfcSecret, 59000, 8) === '94287082' && totp.codeAt(rfcSecret, 59000) === '287082', 'TOTP matches RFC 6238 test vector');
+  const t = await client();
+  t.send({ t: 'register', name: 'Tina', email: 't@x.com', password: 'password1' });
+  const tAuth = await t.until('authed'); assert(tAuth.totp === false, 'new account has 2FA off');
+  t.send({ t: 'totp-setup' });
+  const setup = await t.until('totp-setup'); assert(/^[A-Z2-7]{32}$/.test(setup.secret) && setup.uri.startsWith('otpauth://totp/Skippy:Tina'), 'setup returns secret + otpauth URI');
+  t.send({ t: 'totp-enable', code: '000000' });
+  assert((await t.until('error')).msg.includes('does not match'), 'wrong code does not enable 2FA');
+  t.send({ t: 'totp-enable', code: totp.codeAt(setup.secret) });
+  const en = await t.until('totp-enabled'); assert(en.backupCodes.length === 10, '2FA enabled, 10 backup codes issued');
+
+  const t2 = await client();
+  t2.send({ t: 'login', id: 'tina', password: 'password1' });
+  assert((await t2.next()).t === 'totp-required', 'password login now asks for a code (no session yet)');
+  t2.send({ t: 'join', room: 'x' });
+  assert((await t2.next()).t === 'error', 'cannot do anything before the code');
+  t2.send({ t: 'login-totp', code: '123456' });
+  assert((await t2.next()).msg.includes('not valid'), 'wrong code rejected');
+  // the code just used at enable-time must not be accepted again (replay protection)
+  t2.send({ t: 'login-totp', code: totp.codeAt(setup.secret) });
+  assert((await t2.next()).t === 'error', 'a code already used cannot be replayed');
+  // a code from the next time step is within the allowed drift window and has not been used yet
+  t2.send({ t: 'login-totp', code: totp.codeAt(setup.secret, Date.now() + 30000) });
+  const ok2 = await t2.next(); assert(ok2.t === 'authed' && ok2.totp === true, 'valid next-step code logs in');
+
+  const t3 = await client();
+  t3.send({ t: 'login', id: 'Tina', password: 'password1' }); await t3.next();
+  t3.send({ t: 'login-totp', code: en.backupCodes[0] });
+  assert((await t3.next()).t === 'authed', 'backup code logs in');
+  const t4 = await client();
+  t4.send({ t: 'login', id: 'Tina', password: 'password1' }); await t4.next();
+  t4.send({ t: 'login-totp', code: en.backupCodes[0] });
+  assert((await t4.next()).t === 'error', 'backup code works only once');
+  t4.send({ t: 'login', id: 'Tina', password: 'password1' }); await t4.next();
+  for (let i = 0; i < 5; i++) { t4.send({ t: 'login-totp', code: '111111' }); await t4.next(); }
+  t4.send({ t: 'login-totp', code: totp.codeAt(setup.secret, Date.now() + 60000) });
+  assert((await t4.next()).t === 'totp-expired', 'five wrong codes cancel the login attempt');
+
+  t.send({ t: 'totp-disable', password: 'wrong', code: en.backupCodes[1] });
+  assert((await t.until('error')).msg.includes('wrong'), 'disable needs the password');
+  t.send({ t: 'totp-disable', password: 'password1', code: en.backupCodes[1] });
+  await t.until('totp-disabled');
+  const t5 = await client(); t5.send({ t: 'login', id: 'Tina', password: 'password1' });
+  assert((await t5.next()).t === 'authed', '2FA off again -> password alone logs in');
   cleanup(0);
 })().catch(e => { console.error(e); cleanup(1); });

@@ -114,3 +114,8 @@ button.icon { background: var(--panel2); border: 1px solid var(--line); color: v
 .update-banner { position: fixed; top: 0; left: 0; right: 0; z-index: 30; display: flex; align-items: center; justify-content: center; gap: 12px;
   padding: 8px 16px; background: #14375a; border-bottom: 1px solid var(--accent); }
 .update-banner button { padding: 4px 14px; }
+
+.ghost.wide, .danger.wide { width: 100%; margin-top: 8px; }
+.mono { font-family: Consolas, "Courier New", monospace; word-break: break-all; text-align: center; user-select: all; }
+.codes { text-align: left; background: var(--panel2); border: 1px solid var(--line); border-radius: 6px; padding: 10px; columns: 2; margin: 8px 0; }
+#sec-qr { background: #fff; border-radius: 6px; }

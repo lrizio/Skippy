@@ -82,7 +82,7 @@ function onServer(m) {
       return showLogin();
     case 'logged-out': return;
     case 'error':
-      if (!loggedIn) $('#login-error').textContent = m.msg; else toast(m.msg);
+      if (!loggedIn) $('#login-error').textContent = m.msg; else if (!$('#modal-security').classList.contains('hidden')) $('#sec-error').textContent = m.msg; else toast(m.msg);
       if (!room) $('#join-error').textContent = m.msg;
       return;
     case 'room-full':
@@ -99,6 +99,11 @@ function onServer(m) {
     }
     case 'chat': if (m.msg.room === room) addMessage(m.msg, true); return;
     case 'signal': return onSignal(m.from, m.data);
+    case 'totp-required': $('#login-error').textContent = ''; showTotpStage(true); return;
+    case 'totp-expired': showTotpStage(false); $('#login-error').textContent = 'Login timed out - please log in again.'; return;
+    case 'totp-setup': return onTotpSetup(m);
+    case 'totp-enabled': me.totp = true; showSec('codes'); $('#sec-codes-list').textContent = m.backupCodes.join('\n'); return;
+    case 'totp-disabled': me.totp = false; $('#sec-error').textContent = ''; showSec('off'); toast('Two-factor authentication is off.'); return;
     case 'presence': online = m.users; renderPeople(); return;
     case 'calling': outgoingCall = m; $('#calling-title').textContent = `Calling ${m.to.name}…`; showModal('calling', true); ring('out'); return;
     case 'call-failed':
@@ -115,7 +120,8 @@ function onServer(m) {
 
 async function onAuthed(m) {
   const wasLoggedIn = loggedIn;
-  me = m.user; token = m.token; loggedIn = true;
+  me = m.user; me.totp = !!m.totp; token = m.token; loggedIn = true;
+  showTotpStage(false);
   $('#conn-banner').classList.add('hidden');
   const patch = { token };
   if (pendingLogin) { patch.lastLogin = pendingLogin; S.lastLogin = pendingLogin; pendingLogin = ''; }
@@ -134,6 +140,7 @@ async function onAuthed(m) {
 // ---------- login / register UI ----------
 function showLogin() {
   stopLocal();
+  showTotpStage(false);
   setTab(true);
   $('#login-id').value = S.lastLogin || '';
   $('#login-pw').value = '';
@@ -165,6 +172,48 @@ $('#form-register').onsubmit = async e => {
   pendingLogin = $('#reg-name').value.trim();
   wsSend({ t: 'register', name: $('#reg-name').value, email: $('#reg-email').value,
            callsign: $('#reg-call').value, password: $('#reg-pw').value });
+};
+
+// ---------- two-factor ----------
+function showTotpStage(on) {
+  $('#form-totp').classList.toggle('hidden', !on);
+  $('#form-login').classList.toggle('hidden', on);
+  $('.tabs').classList.toggle('hidden', on);
+  if (on) { $('#totp-code').value = ''; $('#totp-code').focus(); }
+  else { $('#form-login').classList.toggle('hidden', $('#tab-register').classList.contains('active')); }
+}
+$('#form-totp').onsubmit = e => {
+  e.preventDefault();
+  $('#login-error').textContent = '';
+  wsSend({ t: 'login-totp', code: $('#totp-code').value });
+};
+$('#btn-totp-back').onclick = () => { showTotpStage(false); $('#login-error').textContent = ''; $('#login-pw').value = ''; };
+
+function showSec(which) { // which: off | setup | codes | on
+  for (const id of ['off', 'setup', 'codes', 'on']) $('#sec-' + id).classList.toggle('hidden', id !== which);
+}
+$('#btn-security').onclick = () => {
+  $('#sec-error').textContent = '';
+  $('#form-sec-enable').reset(); $('#form-sec-disable').reset();
+  showSec(me.totp ? 'on' : 'off');
+  showModal('security', true);
+};
+$('#btn-sec-close').onclick = () => { showModal('security', false); $('#sec-codes-list').textContent = ''; $('#sec-qr').removeAttribute('src'); };
+$('#btn-sec-start').onclick = () => { $('#sec-error').textContent = ''; wsSend({ t: 'totp-setup' }); };
+async function onTotpSetup(m) {
+  $('#sec-qr').src = await api.makeQr(m.uri);
+  $('#sec-secret').textContent = m.secret.match(/.{1,4}/g).join(' ');
+  $('#form-sec-enable').reset();
+  showSec('setup');
+  $('#sec-code').focus();
+}
+$('#form-sec-enable').onsubmit = e => { e.preventDefault(); $('#sec-error').textContent = ''; wsSend({ t: 'totp-enable', code: $('#sec-code').value }); };
+$('#form-sec-disable').onsubmit = e => {
+  e.preventDefault(); $('#sec-error').textContent = '';
+  wsSend({ t: 'totp-disable', password: $('#sec-pw').value, code: $('#sec-dcode').value });
+};
+$('#btn-sec-copy').onclick = async () => {
+  try { await navigator.clipboard.writeText($('#sec-codes-list').textContent); toast('Backup codes copied.'); } catch { toast('Select the codes and copy them by hand.'); }
 };
 
 async function logout() {
@@ -660,7 +709,7 @@ function addBar(parent, pct) {
 function showModal(which, on) { $('#modal-' + which).classList.toggle('hidden', !on); }
 function clearCallUi() {
   incomingCall = outgoingCall = null; stopRing();
-  for (const m of ['incoming', 'calling', 'people']) showModal(m, false);
+  for (const m of ['incoming', 'calling', 'people', 'security']) showModal(m, false);
 }
 
 let ringCtx = null, ringTimer = null;
