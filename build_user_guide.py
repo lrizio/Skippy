@@ -216,6 +216,7 @@ def build():
         ["<b>Mic, Camera, Speaker</b> lists", "Switch devices without leaving the call."],
         ["<b>Leave</b>", "Leaves the call and returns to the lobby."],
         ["<b>Call someone</b> / <b>Add someone</b>", "Opens the list of people online so you can ring one of them (see <i>Calling someone directly</i>). Inside a call it adds them to that call."],
+        ["<b>Rearranging windows</b>", "Drag any video window (including your own) onto another one to swap their places. The new layout lasts until you leave the call."],
         ["Header (e.g. <i>2 / 10</i>)", "How many people are in the room out of the maximum."],
     ], [2.0, 5.2]))
     f.append(Spacer(1, 6))

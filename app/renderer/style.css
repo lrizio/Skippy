@@ -68,6 +68,9 @@ button.danger { background: var(--danger); border: none; color: #fff; padding: 9
 .tile { position: relative; background: #000; border-radius: 8px; overflow: hidden; aspect-ratio: 16/9; min-height: 0; }
 .tile video { width: 100%; height: 100%; object-fit: contain; background: #000; }
 .tile.self video { transform: scaleX(-1); }
+.tile[draggable="true"] { cursor: grab; }
+.tile.dragging { opacity: .45; cursor: grabbing; }
+.tile.drop-target { outline: 3px solid var(--accent, #4da3ff); outline-offset: -3px; }
 .tile .label { position: absolute; left: 8px; bottom: 8px; background: rgba(0,0,0,.6); padding: 2px 8px; border-radius: 4px; font-size: 12px; }
 .tile .state { position: absolute; right: 8px; top: 8px; font-size: 11px; color: var(--muted); background: rgba(0,0,0,.6); padding: 1px 6px; border-radius: 4px; }
 .tile .avatar { position: absolute; inset: 0; display: none; align-items: center; justify-content: center; font-size: 44px; color: var(--muted); background: var(--panel2); }

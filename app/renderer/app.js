@@ -476,7 +476,38 @@ function makeTile(user, self) {
   tile.querySelector('.label').textContent = user.name + (self ? ' (you)' : '');
   const v = tile.querySelector('video');
   if (self) v.muted = true; else v.classList.add('remote');
+  makeDraggable(tile);
   return tile;
+}
+
+// Video tiles can be dragged onto each other to swap places. The new order lasts until you leave the call.
+let dragTile = null;
+function makeDraggable(tile) {
+  tile.draggable = true;
+  tile.title = 'Drag onto another window to swap places';
+  tile.querySelector('video').draggable = false;
+  tile.addEventListener('dragstart', e => {
+    dragTile = tile; tile.classList.add('dragging');
+    e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', 'skippy-tile');
+  });
+  tile.addEventListener('dragend', () => {
+    tile.classList.remove('dragging'); dragTile = null;
+    for (const t of $('#grid').children) t.classList.remove('drop-target');
+  });
+  tile.addEventListener('dragover', e => {
+    if (!dragTile || dragTile === tile) return;
+    e.preventDefault(); e.dataTransfer.dropEffect = 'move'; tile.classList.add('drop-target');
+  });
+  tile.addEventListener('dragleave', () => tile.classList.remove('drop-target'));
+  tile.addEventListener('drop', e => {
+    e.preventDefault(); tile.classList.remove('drop-target');
+    if (dragTile && dragTile !== tile) swapTiles(dragTile, tile);
+  });
+}
+function swapTiles(a, b) {
+  const grid = $('#grid');
+  const ph = document.createElement('div'); // marker so both can swap even when they are neighbours
+  grid.replaceChild(ph, a); grid.replaceChild(a, b); grid.replaceChild(b, ph);
 }
 function addSelfTile() {
   const tile = makeTile(me, true); tile.id = 'self-tile';
