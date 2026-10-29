@@ -71,6 +71,7 @@ function client() {
   // ---- direct calls ----
   const u2 = users[1], u3 = users[2], u4 = users[3];
   const pres = await u2.until('presence'); assert(pres.users.length >= 1, 'presence broadcasts online users');
+  for (const x of [a, u2, u3, u4]) x.send({ t: 'leave' }); // calls made from inside a room add people to that room, so start from the lobby
   a.send({ t: 'call', to: 'user2' });
   const calling = await a.until('calling'); assert(calling.to.name === 'User2', 'caller gets "calling" (lookup by name, case-insens.)');
   const inc = await u2.until('incoming-call'); assert(inc.from.name === 'Alice', 'callee rings even while in another room');
@@ -101,6 +102,24 @@ function client() {
   assert((await u4.until('call-cancelled')) !== null, 'callee ring cancelled on timeout');
   const hist2 = await (async () => { a.send({ t: 'history', room: s1.room }); return a.until('history'); })();
   assert(Array.isArray(hist2.history), 'direct-room history query works');
+
+  // ---- add someone to a call in progress ----
+  a.send({ t: 'chat', text: 'secret before add' }); await a.until('chat');
+  a.send({ t: 'call', to: 'User2' });
+  assert((await a.until('call-failed')).msg.includes('already in this call'), 'cannot add someone who is already in the call');
+  a.send({ t: 'call', to: 'User3' });
+  const inc5 = await u3.until('incoming-call');
+  u3.send({ t: 'call-answer', callId: inc5.callId, accept: true });
+  const added = await a.until('call-added'); assert(added.with.name === 'User3', 'caller told the person was added (stays in the call)');
+  const s5 = await u3.until('call-start'); assert(s5.room === s1.room, 'added person is sent to the existing room');
+  u3.send({ t: 'join', room: s5.room }); const j3 = await u3.until('joined');
+  assert(j3.peers.length === 2, 'third person joins the same room as both others');
+  assert(!j3.history.some(m => m.text === 'secret before add'), 'added person does not see chat from before they were added');
+  u3.send({ t: 'chat', text: 'hi all' });
+  let got; do got = await u2.until('chat'); while (got.msg.text !== 'hi all'); // skip earlier chat lines
+  assert(got.msg.text === 'hi all', 'chat reaches everyone in the extended call');
+  a.send({ t: 'call', to: 'W1AW' }); // yourself
+  assert((await a.until('call-failed')).msg.includes('yourself'), 'still cannot call yourself');
 
   // ---- two-factor (TOTP) ----
   // RFC 6238 test vector: secret "12345678901234567890", T=59s -> 94287082 (8 digits) -> 287082 (6 digits)

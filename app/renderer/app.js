@@ -116,6 +116,7 @@ function onServer(m) {
       if (incomingCall?.callId === m.callId) { incomingCall = null; showModal('incoming', false); stopRing(); }
       return;
     case 'call-start': return startDirect(m);
+    case 'call-added': outgoingCall = null; showModal('calling', false); stopRing(); toast(`${m.with.name} joined the call.`); return;
     case 'kicked': wantedRoom = null; hardLeave(); toast(m.msg); showLobby(); return;
   }
 }
@@ -428,7 +429,6 @@ $('#form-join').onsubmit = e => { e.preventDefault(); joinRoom($('#room-name').v
 function onJoined(m) {
   room = m.room; wantedRoom = null;
   show('screen-call');
-  $('#call-room').textContent = room.startsWith('@') ? '📞 ' + (dmWith ? dmWith.name : 'Direct call') : '# ' + room;
   $('#conn-banner').classList.add('hidden');
   roster.clear();
   roster.set(m.me.id, m.me);
@@ -442,7 +442,12 @@ function onJoined(m) {
   refreshDevices();
 }
 
-function updateCount() { $('#call-count').textContent = `${roster.size} / 10`; layoutGrid(); }
+function updateCount() { $('#call-count').textContent = `${roster.size} / 10`; setRoomTitle(); layoutGrid(); }
+function setRoomTitle() {
+  if (!room) return;
+  $('#call-room').textContent = !room.startsWith('@') ? '# ' + room
+    : roster.size > 2 ? '📞 Group call' : '📞 ' + (dmWith ? dmWith.name : 'Direct call');
+}
 
 function layoutGrid() {
   const n = $('#grid').children.length;

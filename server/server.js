@@ -82,7 +82,8 @@ const q = {
   sessionUser: db.prepare('SELECT user_id FROM sessions WHERE token_hash = ?'),
   delSession: db.prepare('DELETE FROM sessions WHERE token_hash = ?'),
   insMsg: db.prepare('INSERT INTO messages (room,user_id,name,ts,kind,text,file_name,file_size) VALUES (?,?,?,?,?,?,?,?)'),
-  history: db.prepare('SELECT * FROM (SELECT * FROM messages WHERE room = ? ORDER BY id DESC LIMIT ?) ORDER BY id ASC'),
+  history: db.prepare('SELECT * FROM (SELECT * FROM messages WHERE room = ? AND id >= ? ORDER BY id DESC LIMIT ?) ORDER BY id ASC'),
+  maxMsg: db.prepare('SELECT COALESCE(MAX(id), 0) AS m FROM messages WHERE room = ?'),
   recentRooms: db.prepare(
     "SELECT room, MAX(id) AS last FROM messages WHERE room NOT LIKE '@%' AND room IN (SELECT DISTINCT room FROM messages WHERE user_id = ?) GROUP BY room ORDER BY last DESC LIMIT 12"
   ),
@@ -162,9 +163,17 @@ const CALL_TIMEOUT_MS = parseInt(process.env.SKIPPY_CALL_TIMEOUT || '45000', 10)
 
 // Direct calls happen in a private two-person room named after the pair of user ids.
 const dmRoom = (a, b) => `@${Math.min(a, b)}-${Math.max(a, b)}`;
+// People added to a direct call later ("Add someone") may join that room too, but only see chat from after they were added.
+const invited = new Map(); // room -> Map(userId -> first message id they may see)
 function dmAllowed(room, userId) {
   const m = /^@(\d+)-(\d+)$/.exec(room);
-  return !!m && (Number(m[1]) === userId || Number(m[2]) === userId);
+  return !!m && (Number(m[1]) === userId || Number(m[2]) === userId || invited.get(room)?.has(userId) === true);
+}
+function historyFor(room, userId) {
+  const from = invited.get(room)?.get(userId) || 0;
+  const pair = /^@(\d+)-(\d+)$/.exec(room);
+  const original = pair && (Number(pair[1]) === userId || Number(pair[2]) === userId);
+  return q.history.all(room, original ? 0 : from, HISTORY_LIMIT).map(msgOut);
 }
 
 function broadcastPresence() {
@@ -209,7 +218,7 @@ function leaveRoom(c) {
   if (members && members.get(c.user.id) === c) {
     members.delete(c.user.id);
     for (const p of members.values()) send(p, { t: 'peer-left', id: c.user.id });
-    if (members.size === 0) rooms.delete(c.room);
+    if (members.size === 0) { rooms.delete(c.room); invited.delete(c.room); }
   }
   c.room = null;
 }
@@ -335,7 +344,7 @@ function handle(c, m) {
       members.set(c.user.id, c);
       c.room = room;
       send(c, { t: 'joined', room, me: publicUser(c.user), peers, max: MAX_PARTICIPANTS,
-                history: q.history.all(room, HISTORY_LIMIT).map(msgOut) });
+                history: historyFor(room, c.user.id) });
       for (const p of members.values()) if (p !== c) send(p, { t: 'peer-joined', peer: publicUser(c.user) });
       return;
     }
@@ -386,7 +395,11 @@ function handle(c, m) {
       const callId = crypto.randomUUID();
       const timer = setTimeout(() => finishCall(callId,
         { t: 'call-failed', msg: `${target.name} did not answer.` }, { t: 'call-cancelled', callId }), CALL_TIMEOUT_MS);
-      calls.set(callId, { from: c.user, fromConn: c, toId: target.id, timer });
+      // calling from inside a call adds the person to that call instead of starting a new private one
+      const inRoom = c.room && rooms.get(c.room)?.get(c.user.id) === c ? c.room : null;
+      if (inRoom && rooms.get(inRoom).has(target.id)) return send(c, { t: 'call-failed', msg: `${target.name} is already in this call.` });
+      if (inRoom && rooms.get(inRoom).size >= MAX_PARTICIPANTS) return send(c, { t: 'call-failed', msg: `This call is full (${MAX_PARTICIPANTS} people).` });
+      calls.set(callId, { from: c.user, fromConn: c, toId: target.id, timer, room: inRoom });
       send(c, { t: 'calling', callId, to: publicUser(target) });
       for (const t of conns) send(t, { t: 'incoming-call', callId, from: publicUser(c.user) });
       return;
@@ -400,16 +413,31 @@ function handle(c, m) {
       const call = calls.get(m.callId);
       if (!call || call.toId !== c.user.id) return;
       if (!m.accept) return finishCall(m.callId, { t: 'call-failed', msg: `${c.user.name} declined the call.` }, { t: 'call-cancelled', callId: m.callId });
-      const room = dmRoom(call.from.id, c.user.id);
       clearTimeout(call.timer); calls.delete(m.callId);
+      for (const t of online.get(c.user.id) || []) if (t !== c) send(t, { t: 'call-cancelled', callId: m.callId });
+      // the caller is still in the call they started from: bring the new person into that room
+      const members = call.room && call.fromConn.room === call.room ? rooms.get(call.room) : null;
+      if (members) {
+        if (members.size >= MAX_PARTICIPANTS) {
+          send(call.fromConn, { t: 'call-failed', msg: `This call filled up before ${c.user.name} could join.` });
+          return send(c, { t: 'error', msg: 'That call is full now.' });
+        }
+        if (call.room.startsWith('@')) {
+          if (!invited.has(call.room)) invited.set(call.room, new Map());
+          invited.get(call.room).set(c.user.id, q.maxMsg.get(call.room).m + 1);
+        }
+        send(call.fromConn, { t: 'call-added', with: publicUser(c.user) });
+        return send(c, { t: 'call-start', room: call.room, with: publicUser(call.from) });
+      }
+      const room = dmRoom(call.from.id, c.user.id);
       send(call.fromConn, { t: 'call-start', room, with: publicUser(c.user) });
       send(c, { t: 'call-start', room, with: publicUser(call.from) });
-      for (const t of online.get(c.user.id) || []) if (t !== c) send(t, { t: 'call-cancelled', callId: m.callId });
       return;
     }
     case 'history': {
       const room = normRoom(m.room);
-      return send(c, { t: 'history', room, history: q.history.all(room, HISTORY_LIMIT).map(msgOut) });
+      if (room.startsWith('@') && !dmAllowed(room, c.user.id)) return;
+      return send(c, { t: 'history', room, history: historyFor(room, c.user.id) });
     }
     case 'chat':
     case 'file-announce': {
