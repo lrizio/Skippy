@@ -44,11 +44,11 @@ goto loop
     # a .vbs launcher so no console window appears
     "CreateObject(""WScript.Shell"").Run """"""$loop"""""", 0, False" | Set-Content -Path $vbs -Encoding ASCII
 
-    $action   = New-ScheduledTaskAction -Execute 'wscript.exe' -Argument "//B `"$vbs`"" -WorkingDirectory $here
-    $trigger  = New-ScheduledTaskTrigger -AtLogOn -User $env:USERNAME
-    $settings = New-ScheduledTaskSettingsSet -ExecutionTimeLimit ([TimeSpan]::Zero) -StartWhenAvailable `
+    $taskAction   = New-ScheduledTaskAction -Execute 'wscript.exe' -Argument "//B `"$vbs`"" -WorkingDirectory $here
+    $taskTrigger  = New-ScheduledTaskTrigger -AtLogOn -User $env:USERNAME
+    $taskSettings = New-ScheduledTaskSettingsSet -ExecutionTimeLimit ([TimeSpan]::Zero) -StartWhenAvailable `
                   -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -MultipleInstances IgnoreNew
-    Register-ScheduledTask -TaskName $TaskName -Action $action -Trigger $trigger -Settings $settings `
+    Register-ScheduledTask -TaskName $TaskName -Action $taskAction -Trigger $taskTrigger -Settings $taskSettings `
       -Description 'Skippy video-conferencing server (runs hidden, starts at sign-in)' -Force | Out-Null
     Start-ScheduledTask -TaskName $TaskName
     Write-Host ''
