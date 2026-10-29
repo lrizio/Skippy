@@ -4,7 +4,12 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
-const { DatabaseSync } = require('node:sqlite');
+let DatabaseSync;
+try { ({ DatabaseSync } = require('node:sqlite')); } catch {
+  console.error(`This Node.js (${process.version}) has no built-in SQLite. Skippy's server needs Node.js 22.13 or newer.`);
+  console.error('On Node 22.5-22.12 you can instead start it with:  node --experimental-sqlite server.js');
+  process.exit(1);
+}
 const { WebSocketServer } = require('ws');
 const totp = require('./totp');
 

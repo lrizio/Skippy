@@ -148,7 +148,7 @@ def build():
         "(github.com/lrizio/Skippy/releases) and run it. Windows SmartScreen may say <i>unknown publisher</i> "
         "because the installer is not code-signed: click <b>More info</b>, then <b>Run anyway</b>. The installer "
         "adds Start-menu and Desktop shortcuts.",
-        "<b>The server (the host only).</b> Install Node.js 22.5 or newer from nodejs.org. Download "
+        "<b>The server (the host only).</b> Install Node.js 22.13 or newer from nodejs.org. Download "
         "<i>Skippy-Server-&lt;version&gt;.zip</i> from the same page, unzip it and open a command window in that folder:",
     ]))
     f.append(P("npm install<br/>node server.js", style_code))

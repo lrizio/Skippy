@@ -27,7 +27,7 @@ function Get-State {
 switch ($Action) {
   'Install' {
     $node = (Get-Command node -ErrorAction SilentlyContinue).Source
-    if (-not $node) { throw 'Node.js was not found. Install it from https://nodejs.org, then run this again.' }
+    if (-not $node) { throw 'Node.js was not found. Install Node.js 22.13+ from https://nodejs.org, then run this again.' }
     if (-not (Test-Path (Join-Path $here 'node_modules'))) { throw 'Run "npm install" in this folder first.' }
     Stop-ServerLoop | Out-Null
 
