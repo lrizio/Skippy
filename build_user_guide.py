@@ -203,7 +203,8 @@ def build():
     f.append(P("Type a <b>room name</b> and press <b>Join</b>. Anyone who types the same name joins the same call, so "
                "agree a name with your group (for example <i>weeknight-net</i>). Names are not case sensitive. "
                "A room holds <b>10 people</b>; an eleventh person is told the room is full. Rooms you have used "
-               "appear under <b>Recent rooms</b> for one-click joining."))
+               "appear under <b>Recent rooms</b> for one-click joining. <b>Rooms in use</b> lists every named room that "
+               "has someone in it right now, with a head count - click one to join. (Private direct calls are never listed.)"))
 
     # -------------------------------------------------------------------------
     f.append(CondPageBreak(4 * inch))
@@ -214,7 +215,7 @@ def build():
         ["<b>Stop video / Start video</b>", "Turns your camera off or on. Others see your initial on a grey tile while it is off."],
         ["<b>Mic, Camera, Speaker</b> lists", "Switch devices without leaving the call."],
         ["<b>Leave</b>", "Leaves the call and returns to the lobby."],
-        ["<b>Call someone</b>", "Opens the list of people online so you can ring one of them (see <i>Calling someone directly</i>)."],
+        ["<b>Call someone</b> / <b>Add someone</b>", "Opens the list of people online so you can ring one of them (see <i>Calling someone directly</i>). Inside a call it adds them to that call."],
         ["Header (e.g. <i>2 / 10</i>)", "How many people are in the room out of the maximum."],
     ], [2.0, 5.2]))
     f.append(Spacer(1, 6))
@@ -266,6 +267,10 @@ def build():
         "Your private chat with that person has its own history, so the conversation continues next time you call.",
         "People who are logged out cannot be rung: the caller is told they are not online.",
     ]))
+    f.append(P("<b>Adding someone to a call.</b> While you are in a call (a room or a direct call), the button at the top reads "
+               "<b>Add someone</b>. Choose a person and they are rung; if they accept they join your current call and you "
+               "stay where you are. A direct call becomes a <b>Group call</b> (up to 10 people). People added to a private "
+               "call do not see the chat from before they joined."))
 
     # -------------------------------------------------------------------------
     f.append(P("Running in the background", style_h2))

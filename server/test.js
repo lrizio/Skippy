@@ -121,6 +121,15 @@ function client() {
   a.send({ t: 'call', to: 'W1AW' }); // yourself
   assert((await a.until('call-failed')).msg.includes('yourself'), 'still cannot call yourself');
 
+  // ---- rooms in use list ----
+  u4.send({ t: 'join', room: 'Lounge' }); await u4.until('joined');
+  let lp; for (let i = 0; i < 20; i++) { await new Promise(r => setTimeout(r, 50)); lp = await a.until('presence'); if (lp.rooms.some(r => r.name === 'lounge')) break; }
+  assert(lp.rooms.some(r => r.name === 'lounge' && r.count === 1), 'presence lists a named room with its head count');
+  assert(!lp.rooms.some(r => r.name.startsWith('@')), 'private direct-call rooms are never listed');
+  u4.send({ t: 'leave' });
+  for (let i = 0; i < 20; i++) { await new Promise(r => setTimeout(r, 50)); lp = await a.until('presence'); if (!lp.rooms.some(r => r.name === 'lounge')) break; }
+  assert(!lp.rooms.some(r => r.name === 'lounge'), 'empty room disappears from the list');
+
   // ---- two-factor (TOTP) ----
   // RFC 6238 test vector: secret "12345678901234567890", T=59s -> 94287082 (8 digits) -> 287082 (6 digits)
   const rfcSecret = totp.base32Encode(Buffer.from('12345678901234567890'));

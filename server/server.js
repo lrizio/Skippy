@@ -178,7 +178,9 @@ function historyFor(room, userId) {
 
 function broadcastPresence() {
   const users = [...online.values()].map(set => publicUser([...set][0].user));
-  for (const set of online.values()) for (const c of set) send(c, { t: 'presence', users });
+  // named rooms that have someone in them (private direct-call rooms start with @ and are never listed)
+  const openRooms = [...rooms].filter(([name, mem]) => !name.startsWith('@') && mem.size).map(([name, mem]) => ({ name, count: mem.size }));
+  for (const set of online.values()) for (const c of set) send(c, { t: 'presence', users, rooms: openRooms });
 }
 function goOnline(c) {
   if (!online.has(c.user.id)) online.set(c.user.id, new Set());
@@ -220,7 +222,9 @@ function leaveRoom(c) {
     for (const p of members.values()) send(p, { t: 'peer-left', id: c.user.id });
     if (members.size === 0) { rooms.delete(c.room); invited.delete(c.room); }
   }
+  const was = c.room;
   c.room = null;
+  if (was && !was.startsWith('@')) broadcastPresence();
 }
 
 function sendAuthed(c, user, token, extra) {
@@ -346,6 +350,7 @@ function handle(c, m) {
       send(c, { t: 'joined', room, me: publicUser(c.user), peers, max: MAX_PARTICIPANTS,
                 history: historyFor(room, c.user.id) });
       for (const p of members.values()) if (p !== c) send(p, { t: 'peer-joined', peer: publicUser(c.user) });
+      if (!room.startsWith('@')) broadcastPresence();
       return;
     }
     case 'leave': return leaveRoom(c);

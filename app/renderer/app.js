@@ -106,7 +106,7 @@ function onServer(m) {
     case 'totp-setup': return onTotpSetup(m);
     case 'totp-enabled': me.totp = true; showSec('codes'); $('#sec-codes-list').textContent = m.backupCodes.join('\n'); return;
     case 'totp-disabled': me.totp = false; $('#sec-error').textContent = ''; showSec('off'); toast('Two-factor authentication is off.'); return;
-    case 'presence': online = m.users; renderPeople(); return;
+    case 'presence': online = m.users; openRooms = m.rooms || []; renderPeople(); renderOpenRooms(); return;
     case 'calling': outgoingCall = m; $('#calling-title').textContent = `Calling ${m.to.name}…`; showModal('calling', true); ring('out'); return;
     case 'call-failed':
       outgoingCall = null; showModal('calling', false); stopRing();
@@ -415,6 +415,19 @@ function renderRecent(list) {
   for (const r of list) {
     const b = document.createElement('button'); b.type = 'button'; b.textContent = r;
     b.onclick = () => joinRoom(r);
+    box.appendChild(b);
+  }
+}
+let openRooms = [];
+function renderOpenRooms() {
+  const box = $('#open-rooms'); box.innerHTML = '';
+  if (!openRooms.length) { box.textContent = 'No rooms are in use right now.'; box.classList.add('muted'); return; }
+  box.classList.remove('muted');
+  for (const r of openRooms) {
+    const b = document.createElement('button'); b.type = 'button';
+    b.textContent = `${r.name} (${r.count})`; b.disabled = r.count >= 10;
+    b.title = r.count >= 10 ? 'Room is full' : `Join ${r.name}`;
+    b.onclick = () => joinRoom(r.name);
     box.appendChild(b);
   }
 }
