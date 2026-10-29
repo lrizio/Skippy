@@ -99,6 +99,8 @@ function onServer(m) {
     }
     case 'chat': if (m.msg.room === room) addMessage(m.msg, true); return;
     case 'signal': return onSignal(m.from, m.data);
+    case 'password-reset': toast('Password changed.'); showRecoveryKey(m.recoveryKey, 'Your password is changed and every other device is signed out. This is your new recovery key - the old one no longer works.'); return;
+    case 'recovery-new': $('#form-recovery').reset(); me.hasRecovery = true; showRecoveryKey(m.recoveryKey); return;
     case 'totp-required': $('#login-error').textContent = ''; showTotpStage(true); return;
     case 'totp-expired': showTotpStage(false); $('#login-error').textContent = 'Login timed out - please log in again.'; return;
     case 'totp-setup': return onTotpSetup(m);
@@ -129,7 +131,10 @@ async function onAuthed(m) {
   $('#who-lobby').textContent = $('#who-call').textContent = me.name + (me.callsign ? ` (${me.callsign})` : '');
   renderRecent(m.rooms || []);
   $('#login-error').textContent = '';
-  $('#form-login').reset(); $('#form-register').reset();
+  $('#form-login').reset(); $('#form-register').reset(); $('#form-reset').reset();
+  me.hasRecovery = !!m.hasRecovery;
+  if (m.recoveryKey) showRecoveryKey(m.recoveryKey); // brand-new account
+  else if (!me.hasRecovery) setTimeout(() => toast('Tip: open Security to make a recovery key in case you forget your password.'), 1500);
   if (wantedRoom) { // reconnect case: go straight back into the call
     wsSend({ t: 'join', room: wantedRoom });
     return;
@@ -150,6 +155,7 @@ function showLogin() {
 function setTab(login) {
   $('#tab-login').classList.toggle('active', login);
   $('#tab-register').classList.toggle('active', !login);
+  $('#form-reset').classList.add('hidden');
   $('#form-login').classList.toggle('hidden', !login);
   $('#form-register').classList.toggle('hidden', login);
   $('#login-error').textContent = '';
@@ -172,6 +178,40 @@ $('#form-register').onsubmit = async e => {
   pendingLogin = $('#reg-name').value.trim();
   wsSend({ t: 'register', name: $('#reg-name').value, email: $('#reg-email').value,
            callsign: $('#reg-call').value, password: $('#reg-pw').value });
+};
+
+// ---------- password recovery ----------
+$('#btn-forgot').onclick = () => {
+  $('#login-error').textContent = '';
+  $('#reset-id').value = $('#login-id').value;
+  $('#form-login').classList.add('hidden'); $('.tabs').classList.add('hidden');
+  $('#form-reset').classList.remove('hidden');
+  ($('#reset-id').value ? $('#reset-code') : $('#reset-id')).focus();
+};
+$('#btn-reset-back').onclick = () => {
+  $('#form-reset').classList.add('hidden'); $('.tabs').classList.remove('hidden');
+  $('#form-login').classList.remove('hidden'); $('#login-error').textContent = '';
+};
+$('#form-reset').onsubmit = async e => {
+  e.preventDefault();
+  $('#login-error').textContent = '';
+  const id = $('#reset-id').value.trim();
+  try { await connect(); } catch (err) { $('#login-error').textContent = err.message; return; }
+  pendingLogin = id;
+  wsSend({ t: 'reset-password', id, code: $('#reset-code').value, password: $('#reset-pw').value });
+};
+function showRecoveryKey(key, why) {
+  $('#recovery-key').textContent = key;
+  $('#recovery-why').textContent = why || 'Save this key somewhere safe (a password manager or a printout). If you forget your password it is the only way to get back in without asking the server\'s owner. It is shown only once.';
+  showModal('recovery', true);
+}
+$('#btn-recovery-copy').onclick = async () => {
+  try { await navigator.clipboard.writeText($('#recovery-key').textContent); toast('Recovery key copied.'); } catch { toast('Select the key and copy it by hand.'); }
+};
+$('#btn-recovery-done').onclick = () => { showModal('recovery', false); $('#recovery-key').textContent = ''; };
+$('#form-recovery').onsubmit = e => {
+  e.preventDefault(); $('#sec-error').textContent = '';
+  wsSend({ t: 'recovery-new', password: $('#rec-pw').value });
 };
 
 // ---------- two-factor ----------

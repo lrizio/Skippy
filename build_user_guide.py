@@ -305,6 +305,16 @@ def build():
                   "after which you can set it up again."))
 
     # -------------------------------------------------------------------------
+    f.append(P("Forgot your password?", style_h2))
+    f.append(P("When you create an account Skippy shows a <b>recovery key</b>, such as <i>ABCD-EFGH-JKLM-NPQR</i>. Keep it in a password manager "
+               "or on paper. If you forget your password, click <b>Forgot password?</b> on the login screen, enter your name and the key, and "
+               "choose a new password. Your other devices are signed out and you are given a new recovery key (the old one stops working). "
+               "If you use two-factor, you still need your code to finish logging in. Accounts made before this feature can create a key "
+               "under <b>Security</b>."))
+    f.append(warn("<b>Lost the recovery key too?</b> Ask the person who runs your server to run <i>node reset-password.js your-name</i> in "
+                  "the server folder. It prints a one-time code, good for one hour, that you type in place of the key under <b>Forgot password?</b>."))
+
+    # -------------------------------------------------------------------------
     f.append(P("Updates and version", style_h2))
     f.append(P("The version number is in the window's title bar and at the bottom of the login and lobby screens. "
                "When Skippy starts it checks whether a newer version has been published, either by your server or on "

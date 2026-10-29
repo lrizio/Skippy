@@ -57,6 +57,11 @@ if (!db.prepare('PRAGMA table_info(users)').all().some(c => c.name === 'totp_sec
            ALTER TABLE users ADD COLUMN totp_enabled INTEGER NOT NULL DEFAULT 0;
            ALTER TABLE users ADD COLUMN totp_last INTEGER NOT NULL DEFAULT 0;`);
 db.exec('CREATE TABLE IF NOT EXISTS backup_codes (user_id INTEGER NOT NULL, code_hash TEXT NOT NULL, PRIMARY KEY (user_id, code_hash))');
+// password recovery: a personal recovery key (hash) and a one-time reset code issued by the server host (hash + expiry)
+if (!db.prepare('PRAGMA table_info(users)').all().some(c => c.name === 'recovery_hash'))
+  db.exec(`ALTER TABLE users ADD COLUMN recovery_hash TEXT;
+           ALTER TABLE users ADD COLUMN reset_hash TEXT;
+           ALTER TABLE users ADD COLUMN reset_expires INTEGER NOT NULL DEFAULT 0;`);
 
 const q = {
   setTotp: db.prepare('UPDATE users SET totp_secret = ?, totp_enabled = 1, totp_last = ? WHERE id = ?'),
@@ -65,6 +70,9 @@ const q = {
   insBackup: db.prepare('INSERT INTO backup_codes (user_id, code_hash) VALUES (?, ?)'),
   delBackups: db.prepare('DELETE FROM backup_codes WHERE user_id = ?'),
   useBackup: db.prepare('DELETE FROM backup_codes WHERE user_id = ? AND code_hash = ?'),
+  setRecovery: db.prepare('UPDATE users SET recovery_hash = ? WHERE id = ?'),
+  setPassword: db.prepare('UPDATE users SET salt = ?, hash = ?, reset_hash = NULL, reset_expires = 0 WHERE id = ?'),
+  delUserSessions: db.prepare('DELETE FROM sessions WHERE user_id = ?'),
   userByName: db.prepare('SELECT * FROM users WHERE name = ?'),
   userByEmail: db.prepare('SELECT * FROM users WHERE email = ?'),
   userByCall: db.prepare('SELECT * FROM users WHERE callsign = ?'),
@@ -115,6 +123,24 @@ function newBackupCodes(userId) {
     q.insBackup.run(userId, backupHash(raw));
   }
   return codes;
+}
+
+// ---- password recovery: personal recovery key, or a one-time code the server host issues (reset-password.js) ----
+const KEY_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // no 0/O/1/I
+const recoveryNorm = s => String(s || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+function newRecoveryKey(userId) {
+  let raw = '';
+  for (const b of crypto.randomBytes(16)) raw += KEY_ALPHABET[b % 32];
+  q.setRecovery.run(sha256(raw), userId);
+  return raw.match(/.{4}/g).join('-');
+}
+function recoveryMatches(user, code) {
+  const norm = recoveryNorm(code);
+  if (norm.length < 8) return false;
+  const h = sha256(norm);
+  if (user.recovery_hash && safeEqual(user.recovery_hash, h)) return 'key';
+  if (user.reset_hash && user.reset_expires > Date.now() && safeEqual(user.reset_hash, h)) return 'code';
+  return false;
 }
 
 // ---- login throttling (per IP) ----
@@ -188,10 +214,11 @@ function leaveRoom(c) {
   c.room = null;
 }
 
-function sendAuthed(c, user, token) {
+function sendAuthed(c, user, token, extra) {
   if (c.user) goOffline(c);
   c.user = user;
-  send(c, { t: 'authed', user: publicUser(user), totp: !!user.totp_enabled, token, rooms: q.recentRooms.all(user.id).map(r => r.room) });
+  send(c, { t: 'authed', user: publicUser(user), totp: !!user.totp_enabled, hasRecovery: !!user.recovery_hash, token,
+            rooms: q.recentRooms.all(user.id).map(r => r.room), ...extra });
   goOnline(c);
 }
 
@@ -218,8 +245,33 @@ function handle(c, m) {
       noteAttempt(c.ip);
       const salt = crypto.randomBytes(16).toString('hex');
       const info = q.insUser.run(name, email, callsign, salt, hashPassword(password, salt), Date.now());
-      const user = q.userById.get(Number(info.lastInsertRowid));
-      return sendAuthed(c, user, newToken(user.id));
+      const id = Number(info.lastInsertRowid);
+      const recoveryKey = newRecoveryKey(id);
+      const user = q.userById.get(id);
+      return sendAuthed(c, user, newToken(user.id), { recoveryKey });
+    }
+    case 'reset-password': {
+      if (throttled(c.ip)) return send(c, { t: 'error', msg: 'Too many attempts, wait a minute.' });
+      const user = findUserForLogin(String(m.id || '').trim());
+      const password = String(m.password || '');
+      if (password.length < 8) return send(c, { t: 'error', msg: 'Password must be at least 8 characters.' });
+      // same message whether the account or the key is wrong, so this cannot be used to find out who has an account
+      if (!user || !recoveryMatches(user, m.code)) {
+        noteAttempt(c.ip);
+        return send(c, { t: 'error', msg: 'That account name or recovery code is not valid.' });
+      }
+      const salt = crypto.randomBytes(16).toString('hex');
+      q.setPassword.run(salt, hashPassword(password, salt), user.id); // also clears any host-issued code
+      q.delUserSessions.run(user.id);                                  // sign out every device
+      const recoveryKey = newRecoveryKey(user.id);                     // the old key is now spent
+      const fresh = q.userById.get(user.id);
+      if (fresh.totp_enabled) { // password is reset, but two-factor still guards the login
+        c.pendingTotp = { userId: fresh.id, expires: Date.now() + 5 * 60_000, fails: 0 };
+        send(c, { t: 'password-reset', recoveryKey });
+        return send(c, { t: 'totp-required' });
+      }
+      send(c, { t: 'password-reset', recoveryKey });
+      return sendAuthed(c, fresh, newToken(fresh.id));
     }
     case 'login': {
       if (throttled(c.ip)) return send(c, { t: 'error', msg: 'Too many attempts, wait a minute.' });
@@ -288,6 +340,15 @@ function handle(c, m) {
       return;
     }
     case 'leave': return leaveRoom(c);
+    case 'recovery-new': { // make a fresh recovery key (accounts created before v1.3 have none); needs the password
+      if (throttled(c.ip)) return send(c, { t: 'error', msg: 'Too many attempts, wait a minute.' });
+      const user = q.userById.get(c.user.id);
+      if (!safeEqual(user.hash, hashPassword(String(m.password || ''), user.salt))) {
+        noteAttempt(c.ip);
+        return send(c, { t: 'error', msg: 'Password is wrong.' });
+      }
+      return send(c, { t: 'recovery-new', recoveryKey: newRecoveryKey(user.id) });
+    }
     case 'totp-setup': {
       if (q.userById.get(c.user.id).totp_enabled) return send(c, { t: 'error', msg: 'Two-factor is already on.' });
       c.pendingSecret = totp.newSecret();

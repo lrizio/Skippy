@@ -149,5 +149,51 @@ function client() {
   await t.until('totp-disabled');
   const t5 = await client(); t5.send({ t: 'login', id: 'Tina', password: 'password1' });
   assert((await t5.next()).t === 'authed', '2FA off again -> password alone logs in');
+
+  // ---- password recovery ----
+  const key = tAuth.recoveryKey; assert(/^([A-Z2-9]{4}-){3}[A-Z2-9]{4}$/.test(key), 'new account is issued a recovery key');
+  const f = await client();
+  f.send({ t: 'reset-password', id: 'Tina', code: 'AAAA-BBBB-CCCC-DDDD', password: 'newpass99' });
+  assert((await f.next()).msg.includes('not valid'), 'wrong recovery key rejected');
+  f.send({ t: 'reset-password', id: 'nobody', code: key, password: 'newpass99' });
+  assert((await f.next()).msg.includes('not valid'), 'unknown account gives the same message');
+  f.send({ t: 'reset-password', id: 'Tina', code: key, password: 'short' });
+  assert((await f.next()).msg.includes('8 characters'), 'new password must be 8+ characters');
+  const tToken = tAuth.token;
+  f.send({ t: 'reset-password', id: 'tina', code: key.toLowerCase().replace(/-/g, ' '), password: 'newpass99' });
+  const rr = await f.next(); assert(rr.t === 'password-reset' && rr.recoveryKey && rr.recoveryKey !== key, 'recovery key resets the password and issues a new key');
+  assert((await f.next()).t === 'authed', 'reset logs the user in');
+  const g = await client(); g.send({ t: 'login', id: 'Tina', password: 'password1' });
+  assert((await g.next()).t === 'error', 'old password no longer works');
+  g.send({ t: 'login', id: 'Tina', password: 'newpass99' });
+  assert((await g.next()).t === 'authed', 'new password works');
+  const g2 = await client(); g2.send({ t: 'resume', token: tToken });
+  assert((await g2.next()).t === 'resume-failed', 'reset signs out other sessions');
+  const g3 = await client();
+  g3.send({ t: 'reset-password', id: 'Tina', code: key, password: 'another99' });
+  assert((await g3.next()).t === 'error', 'a recovery key works only once');
+
+  // host-issued one-time code
+  const out = require('child_process').execFileSync(process.execPath, ['reset-password.js', 'tina'], { env: { ...process.env, SKIPPY_DB: db } }).toString();
+  const hostCode = /([A-Z2-9]{4}-[A-Z2-9]{4})\s/.exec(out)[1];
+  g3.send({ t: 'reset-password', id: 'Tina', code: hostCode, password: 'hostset99' });
+  assert((await g3.next()).t === 'password-reset', 'host-issued code resets the password');
+  const g4 = await client();
+  g4.send({ t: 'reset-password', id: 'Tina', code: hostCode, password: 'again1234' });
+  assert((await g4.next()).t === 'error', 'host code works only once');
+  // an expired host code is refused
+  const { DatabaseSync } = require('node:sqlite'); const dbx = new DatabaseSync(db);
+  const out2 = require('child_process').execFileSync(process.execPath, ['reset-password.js', 'tina@nowhere'.replace('tina@nowhere', 't@x.com')], { env: { ...process.env, SKIPPY_DB: db } }).toString();
+  const code2 = /([A-Z2-9]{4}-[A-Z2-9]{4})\s/.exec(out2)[1];
+  dbx.prepare('UPDATE users SET reset_expires = ? WHERE name = ?').run(Date.now() - 1000, 'Tina'); dbx.close();
+  g4.send({ t: 'reset-password', id: 'Tina', code: code2, password: 'again1234' });
+  assert((await g4.next()).t === 'error', 'expired host code refused');
+
+  // existing accounts can make a recovery key from Security (needs the password)
+  const hh = await client(); hh.send({ t: 'login', id: 'Tina', password: 'hostset99' }); await hh.until('authed');
+  hh.send({ t: 'recovery-new', password: 'nope' });
+  assert((await hh.until('error')).msg.includes('wrong'), 'new recovery key needs the password');
+  hh.send({ t: 'recovery-new', password: 'hostset99' });
+  const nk = await hh.until('recovery-new'); assert(/^([A-Z2-9]{4}-){3}[A-Z2-9]{4}$/.test(nk.recoveryKey), 'new recovery key issued');
   cleanup(0);
 })().catch(e => { console.error(e); cleanup(1); });

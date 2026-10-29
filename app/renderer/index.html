@@ -33,6 +33,22 @@
         <input id="login-pw" type="password" autocomplete="current-password" required>
       </label>
       <button class="primary" type="submit">Log in</button>
+      <button class="ghost wide" id="btn-forgot" type="button">Forgot password?</button>
+    </form>
+
+    <form id="form-reset" class="hidden" autocomplete="off">
+      <p class="muted">Enter your recovery key (shown when you created the account), or a one-time code from whoever runs the server.</p>
+      <label>Name, email or callsign
+        <input id="reset-id" type="text" required>
+      </label>
+      <label>Recovery key or code
+        <input id="reset-code" type="text" spellcheck="false" autocomplete="off" required>
+      </label>
+      <label>New password <span class="muted">(8+ characters)</span>
+        <input id="reset-pw" type="password" minlength="8" autocomplete="new-password" required>
+      </label>
+      <button class="primary" type="submit">Reset password</button>
+      <button class="ghost wide" id="btn-reset-back" type="button">Back</button>
     </form>
 
     <form id="form-register" class="hidden" autocomplete="off">
@@ -195,8 +211,26 @@
       </form>
     </div>
 
+    <h2>Password recovery</h2>
+    <p class="muted" id="rec-note">Your recovery key lets you set a new password if you forget it. Making a new key replaces the old one.</p>
+    <form id="form-recovery">
+      <label>Password <input id="rec-pw" type="password" autocomplete="current-password" required></label>
+      <button class="ghost wide" type="submit">Make a new recovery key</button>
+    </form>
+
     <div id="sec-error" class="error"></div>
     <button class="ghost" id="btn-sec-close" type="button">Close</button>
+  </div>
+</div>
+<div id="modal-recovery" class="modal hidden">
+  <div class="modal-card">
+    <h2>Your recovery key</h2>
+    <p id="recovery-why">Save this key somewhere safe (a password manager or a printout). If you forget your password it is the only way to get back in without asking the server's owner. It is shown only once.</p>
+    <pre id="recovery-key" class="mono codes"></pre>
+    <div class="row">
+      <button class="ghost" id="btn-recovery-copy" type="button">Copy key</button>
+      <button class="primary" id="btn-recovery-done" type="button">I have saved it</button>
+    </div>
   </div>
 </div>
 <div id="modal-incoming" class="modal hidden">
