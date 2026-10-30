@@ -112,6 +112,7 @@
         <label>Speaker <select id="sel-spk"></select></label>
       </div>
       <div class="meter"><div id="mic-level"></div></div>
+      <label class="chk"><input type="checkbox" id="chk-startmuted"> Join calls with my microphone muted</label>
     </div>
     <div class="lobby-right">
       <h2>Join a room</h2>
@@ -142,6 +143,18 @@
     <button class="ghost" id="btn-call-call" type="button" title="Ring someone and bring them into this call">➕ Add someone</button>
     <span class="who" id="who-call"></span>
   </header>
+  <div class="controls">
+    <button id="btn-mic" class="ctl" type="button">Mute</button>
+    <button id="btn-cam" class="ctl" type="button">Stop video</button>
+    <button id="btn-share" class="ctl" type="button" title="Show your screen or a window to everyone">Share screen</button>
+    <button id="btn-chat" class="ctl" type="button" title="Show or hide the chat">Hide chat</button>
+    <label class="ctl-size" title="Size of the video windows (double-click a window to fill the screen with it)">Windows <input id="tile-size" type="range" min="30" max="100" value="100"></label>
+    <label class="ctl-select">Mic <select id="call-mic"></select></label>
+    <label class="ctl-select">Camera <select id="call-cam"></select></label>
+    <label class="ctl-select">Speaker <select id="call-spk"></select></label>
+    <span class="grow"></span>
+    <button id="btn-leave" class="danger" type="button">Leave</button>
+  </div>
   <div class="call-body">
     <div id="grid" class="grid"></div>
     <div id="side-resizer" class="side-resizer" title="Drag to resize the chat"></div>
@@ -156,18 +169,6 @@
       </form>
     </aside>
   </div>
-  <footer class="controls">
-    <button id="btn-mic" class="ctl" type="button">Mute</button>
-    <button id="btn-cam" class="ctl" type="button">Stop video</button>
-    <button id="btn-share" class="ctl" type="button" title="Show your screen or a window to everyone">Share screen</button>
-    <button id="btn-chat" class="ctl" type="button" title="Show or hide the chat">Hide chat</button>
-    <label class="ctl-size" title="Size of the video windows (double-click a window to fill the screen with it)">Windows <input id="tile-size" type="range" min="30" max="100" value="100"></label>
-    <label class="ctl-select">Mic <select id="call-mic"></select></label>
-    <label class="ctl-select">Camera <select id="call-cam"></select></label>
-    <label class="ctl-select">Speaker <select id="call-spk"></select></label>
-    <span class="grow"></span>
-    <button id="btn-leave" class="danger" type="button">Leave</button>
-  </footer>
 </section>
 
 <div id="modal-people" class="modal hidden">

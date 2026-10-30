@@ -372,10 +372,16 @@ function applyTrackStates() {
   localStream?.getVideoTracks().forEach(t => t.enabled = camOn);
   $('#btn-mic').textContent = micOn ? 'Mute' : 'Unmute';
   $('#btn-mic').classList.toggle('off', !micOn);
+  setMicIcon($('#self-tile'), micOn);
   $('#btn-cam').textContent = camOn ? 'Stop video' : 'Start video';
   $('#btn-cam').classList.toggle('off', !camOn);
   updateSelfTile();
   for (const p of peers.values()) sendState(p);
+}
+function setMicIcon(tile, on) {
+  const m = tile?.querySelector('.mic'); if (!m) return;
+  m.textContent = on ? '🎤' : '🔇'; m.classList.toggle('muted', !on);
+  m.title = on ? 'Microphone on' : 'Microphone muted';
 }
 function sendState(p) {
   if (p.dc?.readyState === 'open') p.dc.send(JSON.stringify({ k: 'state', mic: micOn, cam: camOn || !!screenStream }));
@@ -434,7 +440,7 @@ function renderOpenRooms() {
 function joinRoom(name) {
   $('#join-error').textContent = '';
   wantedRoom = name; dmWith = null;
-  micOn = false; // every call starts muted
+  micOn = lsGet('startMuted', '0') !== '1'; // unmuted unless the lobby option says otherwise
   wsSend({ t: 'join', room: name });
 }
 $('#form-join').onsubmit = e => { e.preventDefault(); joinRoom($('#room-name').value.trim()); };
@@ -499,7 +505,7 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape' && document.b
 function makeTile(user, self) {
   const tile = document.createElement('div');
   tile.className = 'tile novideo' + (self ? ' self' : '');
-  tile.innerHTML = '<div class="avatar"></div><video autoplay playsinline></video><div class="label"></div><div class="state"></div><button type="button" class="tile-fs" title="Full screen (Esc to leave)">⛶</button>';
+  tile.innerHTML = '<div class="avatar"></div><video autoplay playsinline></video><div class="label"></div><div class="state"></div><div class="mic" title="Microphone">🎤</div><button type="button" class="tile-fs" title="Full screen (Esc to leave)">⛶</button>';
   tile.querySelector('.tile-fs').onclick = e => { e.stopPropagation(); if (document.body.classList.contains('fs')) exitFull(); else enterFull(tile); };
   tile.querySelector('.avatar').textContent = (user.name[0] || '?').toUpperCase();
   tile.querySelector('.label').textContent = user.name + (self ? ' (you)' : '');
@@ -639,6 +645,9 @@ function setChatWidth(w) {
     lsSet('chatW', String(parseInt($('#side').style.width, 10) || 320));
   };
   setChatWidth(parseInt(lsGet('chatW', '320'), 10) || 320);
+  const sm = $('#chk-startmuted');
+  sm.checked = lsGet('startMuted', '0') === '1';
+  sm.onchange = () => lsSet('startMuted', sm.checked ? '1' : '0');
   $('#btn-chat').onclick = () => setChat(!chatShown());
   const size = $('#tile-size');
   const applySize = () => { $('#grid').style.setProperty('--tile-w', size.value + '%'); lsSet('tileSize', size.value); };
@@ -858,7 +867,7 @@ async function pushFile(p, fileId, file) {
 function onDataMessage(p, data) {
   if (typeof data === 'string') {
     let m; try { m = JSON.parse(data); } catch { return; }
-    if (m.k === 'state') { p.camOff = !m.cam; updatePeerVideo(p); return; }
+    if (m.k === 'state') { p.camOff = !m.cam; setMicIcon(p.tile, !!m.mic); updatePeerVideo(p); return; }
     if (m.k === 'start') {
       if (typeof m.size !== 'number' || m.size > MAX_FILE) { p.incoming = { skip: true }; toast(`${p.user.name} sent a file that is too large; skipped.`); return; }
       if (typeof m.id !== 'string' || !/^[0-9a-f-]{36}$/i.test(m.id)) return;
@@ -1009,7 +1018,7 @@ $('#btn-decline').onclick = () => {
 function startDirect(m) {
   outgoingCall = null; showModal('calling', false); showModal('incoming', false); stopRing();
   dmWith = m.with;
-  micOn = false; // every call starts muted
+  micOn = lsGet('startMuted', '0') !== '1'; // unmuted unless the lobby option says otherwise
   closeAllPeers(); // leave whatever room we were in; the server moves us when we join
   wantedRoom = m.room;
   wsSend({ t: 'join', room: m.room });

@@ -211,7 +211,7 @@ def build():
     f.append(P("In a call", style_h2))
     f.append(table([
         ["Control", "What it does"],
-        ["<b>Mute / Unmute</b>", "Stops or restarts your microphone. <b>Every call starts muted</b> - press Unmute when you want to speak. Others see nothing change on your tile; they simply stop hearing you."],
+        ["<b>Mute / Unmute</b>", "Stops or restarts your microphone. Calls start with your microphone <b>on</b>; tick <b>Join calls with my microphone muted</b> in the lobby if you would rather start muted. Every video window shows a small microphone symbol in its top-left corner: a microphone when that person can be heard, a crossed-out speaker (red) when they are muted."],
         ["<b>Call clock</b>", "Next to the head count, shows how long you have been connected to this call."],
         ["<b>Stop video / Start video</b>", "Turns your camera off or on. Others see your initial on a grey tile while it is off."],
         ["<b>Share screen</b>", "Pick a whole screen or a single window from the list and everyone in the call sees it instead of your camera. The button becomes <b>Stop sharing</b>; press it (or stop from the operating system) and your camera comes back. Audio from the screen is not shared."],

@@ -108,10 +108,10 @@ button.danger { background: var(--danger); border: none; color: #fff; padding: 9
 .chat-form input[type=text] { margin: 0; }
 button.icon { background: var(--panel2); border: 1px solid var(--line); color: var(--text); border-radius: 6px; padding: 0 10px; cursor: pointer; }
 
-.controls { flex-wrap: wrap; display: flex; align-items: center; gap: 10px; padding: 10px 16px; background: var(--panel); border-top: 1px solid var(--line); }
-.ctl { white-space: nowrap; background: var(--panel2); border: 1px solid var(--line); color: var(--text); padding: 9px 16px; border-radius: 6px; cursor: pointer; min-width: 100px; }
+.controls { flex-wrap: wrap; display: flex; align-items: center; gap: 8px; padding: 10px 16px; background: var(--panel); border-bottom: 1px solid var(--line); }
+.ctl { white-space: nowrap; background: var(--panel2); border: 1px solid var(--line); color: var(--text); padding: 9px 12px; border-radius: 6px; cursor: pointer; min-width: 0; }
 .ctl.off { background: #4a1f22; border-color: var(--danger); }
-.ctl-select { margin: 0; width: 170px; }
+.ctl-select { margin: 0; width: 130px; }
 .ctl-select select { padding: 6px 8px; font-size: 12px; }
 
 .toast { position: fixed; bottom: 80px; left: 50%; transform: translateX(-50%); background: var(--panel2); border: 1px solid var(--line); padding: 10px 18px; border-radius: 8px; z-index: 10; max-width: 80%; }
@@ -146,3 +146,5 @@ body.fs .topbar, body.fs .controls, body.fs .side, body.fs .side-resizer, body.f
 body.fs .grid { padding: 0; }
 body.fs .tile.spot { border-radius: 0; }
 .tile.sharing .avatar { font-size: 22px; }
+.tile .mic { position: absolute; left: 8px; top: 8px; background: rgba(0,0,0,.6); padding: 1px 6px; border-radius: 4px; font-size: 13px; }
+.tile .mic.muted { background: rgba(160,30,40,.85); }
