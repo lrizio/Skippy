@@ -26,9 +26,14 @@ function Get-State {
 
 switch ($Action) {
   'Install' {
-    $node = (Get-Command node -ErrorAction SilentlyContinue).Source
-    if (-not $node) { throw 'Node.js was not found. Install Node.js 22.13+ from https://nodejs.org, then run this again.' }
-    if (-not (Test-Path (Join-Path $here 'node_modules'))) { throw 'Run "npm install" in this folder first.' }
+    $exe = Join-Path $here 'Skippy-Server.exe'
+    if (Test-Path $exe) { $runner = "`"$exe`"" }   # packaged download: no Node.js needed
+    else {
+      $node = (Get-Command node -ErrorAction SilentlyContinue).Source
+      if (-not $node) { throw 'Node.js was not found. Install Node.js 22.13+ from https://nodejs.org, then run this again.' }
+      if (-not (Test-Path (Join-Path $here 'node_modules'))) { throw 'Run "npm install" in this folder first.' }
+      $runner = "`"$node`" server.js"
+    }
     Stop-ServerLoop | Out-Null
 
     # restart loop: if the server ever exits, start it again after 5 s. Output goes to server.log.
@@ -37,7 +42,7 @@ switch ($Action) {
 cd /d "%~dp0"
 set PORT=$Port
 :loop
-"$node" server.js >> server.log 2>&1
+$runner >> server.log 2>&1
 timeout /t 5 /nobreak >nul
 goto loop
 "@ | Set-Content -Path $loop -Encoding ASCII

@@ -8,6 +8,8 @@ Desktop app for Windows (installer provided), macOS and Linux (build from source
 1. **Install the app** - download `Skippy-Setup-<version>.exe` from the [latest release](https://github.com/lrizio/Skippy/releases/latest) and run it.
    Windows SmartScreen will say "unknown publisher" because the installer isn't code-signed: click *More info -> Run anyway*.
 2. **Get a server** - one person per group runs the Skippy server (everyone else just connects to it):
+   - **Windows, easiest:** download `Skippy-Server-Windows-<version>.zip` from the release, unzip it and double-click `Start Skippy Server.bat` (or `Run Skippy Server in Background.bat` to run it hidden). No Node.js needed - `Skippy-Server.exe` has everything inside. Same SmartScreen note as above.
+   - **Any OS (or if you prefer Node):**
    - Install [Node.js 22.13 or newer](https://nodejs.org/) (24+ recommended).
    - Download `Skippy-Server-<version>.zip` from the same release, unzip it, and in that folder run:
      ```

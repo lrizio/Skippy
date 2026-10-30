@@ -14,7 +14,7 @@ const { WebSocketServer } = require('ws');
 const totp = require('./totp');
 
 const PORT = parseInt(process.env.PORT || '8470', 10);
-const DB_PATH = process.env.SKIPPY_DB || path.join(__dirname, 'skippy.db');
+const DB_PATH = process.env.SKIPPY_DB || path.join(require('./home'), 'skippy.db');
 const MAX_PARTICIPANTS = 10;
 const HISTORY_LIMIT = 200;
 const MAX_CHAT_LEN = 4000;
@@ -471,7 +471,7 @@ function handle(c, m) {
 
 // GET /update.json tells clients the newest app version. Edit update.json next to this file to announce a release:
 // { "version": "1.2.0", "url": "https://where-to-download", "notes": "what changed" }
-const UPDATE_FILE = process.env.SKIPPY_UPDATE_FILE || path.join(__dirname, 'update.json');
+const UPDATE_FILE = process.env.SKIPPY_UPDATE_FILE || path.join(require('./home'), 'update.json');
 const server = http.createServer((req, res) => {
   if (req.url === '/update.json') {
     try {

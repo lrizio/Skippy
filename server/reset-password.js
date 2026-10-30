@@ -9,7 +9,7 @@ const { DatabaseSync } = require('node:sqlite');
 
 const ident = process.argv[2];
 if (!ident) { console.error('Usage: node reset-password.js <name, callsign or email>'); process.exit(1); }
-const db = new DatabaseSync(process.env.SKIPPY_DB || path.join(__dirname, 'skippy.db'));
+const db = new DatabaseSync(process.env.SKIPPY_DB || path.join(require('./home'), 'skippy.db'));
 const user = db.prepare('SELECT id, name FROM users WHERE name = ? OR callsign = ? OR email = ?').get(ident, ident.toUpperCase(), ident);
 if (!user) { console.error(`No user "${ident}".`); process.exit(1); }
 
