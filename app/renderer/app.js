@@ -832,6 +832,27 @@ function renderHistory(list) {
   scrollLog();
 }
 
+// Web addresses in a message become links that open in the system browser (never inside the app window).
+const URL_RE = /\b(?:https?:\/\/|www\.)[^\s<>"]+/gi;
+function linkify(el, text) {
+  let last = 0;
+  for (const m of text.matchAll(URL_RE)) {
+    let url = m[0], tail = '';
+    for (;;) { // trailing punctuation belongs to the sentence, not the link; keep a closing bracket only if it is balanced
+      const c = url[url.length - 1];
+      const open = { ')': '(', ']': '[' }[c];
+      if (/[.,;:!?'"]/.test(c) || (open && (url.split(c).length > url.split(open).length))) { tail = c + tail; url = url.slice(0, -1); } else break;
+    }
+    if (!/^https?:\/\/\S{1,}/i.test(url) && !/^www\.\S+\.\S+/i.test(url)) continue;
+    const href = /^www\./i.test(url) ? 'https://' + url : url;
+    el.append(text.slice(last, m.index));
+    const a = document.createElement('a'); a.textContent = url; a.href = href; a.title = href;
+    a.onclick = e => { e.preventDefault(); api.openExternal(href); };
+    el.append(a, tail);
+    last = m.index + m[0].length;
+  }
+  el.append(text.slice(last));
+}
 function addMessage(m, live) {
   const d = document.createElement('div');
   d.className = 'msg' + (m.userId === me.id ? ' mine' : '') + (m.kind === 'file' ? ' file' : '');
@@ -847,7 +868,7 @@ function addMessage(m, live) {
     log.appendChild(d);
     updateFileEl(d, m.fileId);
   } else {
-    body.textContent = m.text;
+    linkify(body, m.text);
     d.append(meta, body);
     log.appendChild(d);
   }

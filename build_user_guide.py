@@ -237,6 +237,7 @@ def build():
         "<b>Chat history is kept.</b> Messages are saved on the server per room. When you (or anyone) join "
         "again later, the most recent 200 messages appear above a divider, followed by a divider and anything new.",
         "Joins and leaves are shown as small grey notes.",
+        "<b>Links.</b> A web address typed or pasted into a message (starting http://, https:// or www.) becomes a clickable link that opens in your normal web browser.",
     ]))
 
     f.append(P("Sending files", style_h2))
