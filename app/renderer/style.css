@@ -138,3 +138,11 @@ button.icon { background: var(--panel2); border: 1px solid var(--line); color: v
 .mono { font-family: Consolas, "Courier New", monospace; word-break: break-all; text-align: center; user-select: all; }
 .codes { text-align: left; background: var(--panel2); border: 1px solid var(--line); border-radius: 6px; padding: 10px; columns: 2; margin: 8px 0; }
 #sec-qr { background: #fff; border-radius: 6px; }
+.tile-fs { position: absolute; right: 8px; bottom: 8px; background: rgba(0,0,0,.6); color: #fff; border: 0; border-radius: 4px; padding: 2px 8px; font-size: 16px; cursor: pointer; opacity: 0; transition: opacity .15s; }
+.tile:hover .tile-fs { opacity: 1; }
+.grid.spot { align-content: stretch; grid-template-rows: minmax(0, 1fr); }
+.grid.spot .tile.spot { width: 100%; height: 100%; aspect-ratio: auto; }
+body.fs .topbar, body.fs .controls, body.fs .side, body.fs .side-resizer, body.fs #update-banner { display: none !important; }
+body.fs .grid { padding: 0; }
+body.fs .tile.spot { border-radius: 0; }
+.tile.sharing .avatar { font-size: 22px; }

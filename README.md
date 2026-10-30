@@ -37,6 +37,8 @@ macOS/Linux: build the app yourself (`cd app && npm install && npm run dist` on 
 - **Muted start and call clock**: every call starts with your microphone muted (press Unmute to speak), and a clock in the header shows how long you have been connected.
 - **Screen sharing**: "Share screen" lets you pick a screen or window to show everyone instead of your camera.
 - **Resizable chat and windows**: hide the chat entirely, drag its edge to resize it, scale the video windows with a slider, and double-click one to fill the screen.
+- **Full screen**: a button on every video window (shared screens too); Esc to leave. Your own tile shows a placeholder while you share, so Skippy never mirrors itself.
+- **Clean installs**: the Windows installer closes any running Skippy and removes the previous version first.
 - **Rearrange video windows**: drag any tile onto another to swap places (kept until you leave the call).
 - **Rooms in use / Add someone**: the lobby lists every named room that has people in it (click to join; private direct calls are never listed). Inside a call, **➕ Add someone** rings a person and brings them into the call you are already in (up to 10); people added to a private call only see chat from after they joined.
 - **Direct calls**: **📞 Call someone** (lobby or in a call) lists who is online - click Call, or type a name/callsign. They get a ringing dialog (and the window pops up from the tray); Accept opens a private two-person room (with its own chat history). Rings for 45 s. You can only call people who are logged in.

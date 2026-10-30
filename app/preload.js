@@ -10,6 +10,7 @@ contextBridge.exposeInMainWorld('skippy', {
   openExternal: url => ipcRenderer.send('open:external', url),
   hideToTray: () => ipcRenderer.send('win:hide'),
   showWindow: () => ipcRenderer.send('win:show'),
+  setFullscreen: on => ipcRenderer.send('win:fullscreen', !!on),
   screenSources: () => ipcRenderer.invoke('screen:sources'),
   screenPick: id => ipcRenderer.invoke('screen:pick', id),
   // received files are written to disk by the main process instead of piling up in memory

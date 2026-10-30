@@ -1,7 +1,7 @@
 {
   "name": "skippy",
   "productName": "Skippy",
-  "version": "1.7.0",
+  "version": "1.8.0",
   "description": "Skippy - group video conferencing for up to 10 participants",
   "main": "main.js",
   "scripts": {
@@ -54,7 +54,9 @@
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "Skippy"
+      "shortcutName": "Skippy",
+      "include": "build/installer.nsh",
+      "deleteAppDataOnUninstall": false
     }
   },
   "devDependencies": {

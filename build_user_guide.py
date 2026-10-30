@@ -217,6 +217,7 @@ def build():
         ["<b>Share screen</b>", "Pick a whole screen or a single window from the list and everyone in the call sees it instead of your camera. The button becomes <b>Stop sharing</b>; press it (or stop from the operating system) and your camera comes back. Audio from the screen is not shared."],
         ["<b>Hide chat / Show chat</b>", "Turns the chat panel off to give the video more room (the button counts messages that arrived while it was hidden). Drag the thin bar between the video and the chat to make the chat wider or narrower. Skippy remembers both."],
         ["<b>Windows</b> slider", "Makes all the video windows smaller or larger. <b>Double-click</b> a window to fill the screen with it; double-click again to go back."],
+        ["<b>Full screen</b> button", "Hover over any video window (including someone's shared screen) and press the small <b>&#9974;</b> button in its corner to fill the whole screen with it. Press <b>Esc</b> (or the button again) to go back. While you share your own screen your tile shows a placeholder instead of your screen, which avoids the endless picture-in-picture mirror effect."],
         ["<b>Mic, Camera, Speaker</b> lists", "Switch devices without leaving the call."],
         ["<b>Leave</b>", "Leaves the call and returns to the lobby."],
         ["<b>Call someone</b> / <b>Add someone</b>", "Opens the list of people online so you can ring one of them (see <i>Calling someone directly</i>). Inside a call it adds them to that call."],

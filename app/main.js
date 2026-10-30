@@ -177,6 +177,7 @@ ipcMain.handle('screen:sources', async () => {
   return srcs.map(s => ({ id: s.id, name: s.name, thumb: s.thumbnail.toDataURL() }));
 });
 ipcMain.handle('screen:pick', (_e, id) => { pickedSource = String(id); });
+ipcMain.on('win:fullscreen', (_e, on) => { if (win) win.setFullScreen(on); });
 ipcMain.on('win:hide', hideToTray);
 ipcMain.on('win:show', showWindow);
 

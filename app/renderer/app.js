@@ -374,7 +374,7 @@ function applyTrackStates() {
   $('#btn-mic').classList.toggle('off', !micOn);
   $('#btn-cam').textContent = camOn ? 'Stop video' : 'Start video';
   $('#btn-cam').classList.toggle('off', !camOn);
-  $('#self-tile')?.classList.toggle('novideo', !camOn || !localStream?.getVideoTracks().length);
+  updateSelfTile();
   for (const p of peers.values()) sendState(p);
 }
 function sendState(p) {
@@ -485,10 +485,22 @@ function layoutGrid() {
   $('#grid').style.gridTemplateColumns = `repeat(${cols}, minmax(0, 1fr))`;
 }
 
+
+// A tile can fill the call area (double-click) or the whole screen (the full-screen button, Esc to leave).
+function spotTile(tile, on) {
+  for (const t of $('#grid').children) t.classList.remove('spot');
+  tile.classList.toggle('spot', on);
+  $('#grid').classList.toggle('spot', on);
+}
+function enterFull(tile) { spotTile(tile, true); document.body.classList.add('fs'); api.setFullscreen(true); }
+function exitFull() { document.body.classList.remove('fs'); api.setFullscreen(false); }
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && document.body.classList.contains('fs')) exitFull(); });
+
 function makeTile(user, self) {
   const tile = document.createElement('div');
   tile.className = 'tile novideo' + (self ? ' self' : '');
-  tile.innerHTML = '<div class="avatar"></div><video autoplay playsinline></video><div class="label"></div><div class="state"></div>';
+  tile.innerHTML = '<div class="avatar"></div><video autoplay playsinline></video><div class="label"></div><div class="state"></div><button type="button" class="tile-fs" title="Full screen (Esc to leave)">⛶</button>';
+  tile.querySelector('.tile-fs').onclick = e => { e.stopPropagation(); if (document.body.classList.contains('fs')) exitFull(); else enterFull(tile); };
   tile.querySelector('.avatar').textContent = (user.name[0] || '?').toUpperCase();
   tile.querySelector('.label').textContent = user.name + (self ? ' (you)' : '');
   const v = tile.querySelector('video');
@@ -502,12 +514,8 @@ let dragTile = null;
 function makeDraggable(tile) {
   tile.draggable = true;
   tile.title = 'Drag onto another window to swap places. Double-click to fill the screen with it.';
-  tile.addEventListener('dblclick', () => {
-    const on = !tile.classList.contains('spot');
-    for (const t of $('#grid').children) t.classList.remove('spot');
-    tile.classList.toggle('spot', on);
-    $('#grid').classList.toggle('spot', on);
-  });
+  tile.addEventListener('dblclick', () => spotTile(tile, !tile.classList.contains('spot')));
+
   tile.querySelector('video').draggable = false;
   tile.addEventListener('dragstart', e => {
     dragTile = tile; tile.classList.add('dragging');
@@ -539,9 +547,12 @@ function addSelfTile() {
 }
 function updateSelfTile() {
   const tile = $('#self-tile'); if (!tile) return;
-  tile.querySelector('video').srcObject = screenStream || localStream;
+  // While sharing, never show the live screen in your own tile: if Skippy is on the shared screen it would show itself
+  // inside itself forever (the Droste effect). A placeholder is shown instead.
+  tile.querySelector('video').srcObject = screenStream ? null : localStream;
   tile.classList.toggle('sharing', !!screenStream);
-  tile.classList.toggle('novideo', !screenStream && (!camOn || !localStream?.getVideoTracks().some(t => t.readyState === 'live')));
+  tile.querySelector('.avatar').textContent = screenStream ? '🖥 You are sharing your screen' : (me.name[0] || '?').toUpperCase();
+  tile.classList.toggle('novideo', !!screenStream || !camOn || !localStream?.getVideoTracks().some(t => t.readyState === 'live'));
 }
 
 // ---------- screen share ----------
@@ -747,6 +758,7 @@ function closePeer(id) {
 function closeAllPeers() { for (const id of [...peers.keys()]) closePeer(id); }
 
 function hardLeave() {
+  if (document.body.classList.contains('fs')) exitFull();
   stopShare(); // before closing the connections, so the camera is restored cleanly
   closeAllPeers();
   $('#grid').classList.remove('spot');
