@@ -467,7 +467,7 @@ function onJoined(m) {
   roster.set(m.me.id, m.me);
   for (const p of m.peers) roster.set(p.id, p);
   $('#grid').innerHTML = '';
-  $('#grid').classList.remove('spot');
+  $('#grid').classList.remove('spot'); layoutCustom = false;
   setChat(lsGet('chatOn', '1') === '1');
   shareChanged();
   addSelfTile();
@@ -485,11 +485,43 @@ function setRoomTitle() {
     : roster.size > 2 ? '📞 Group call' : '📞 ' + (dmWith ? dmWith.name : 'Direct call');
 }
 
-function layoutGrid() {
-  const n = $('#grid').children.length;
-  const cols = n <= 1 ? 1 : n <= 4 ? 2 : n <= 9 ? 3 : 4;
-  $('#grid').style.gridTemplateColumns = `repeat(${cols}, minmax(0, 1fr))`;
+// ---- free-form video windows ----
+// Every tile is a window inside the grid area: drag it to move it, drag any edge or corner to resize it.
+// Until you arrange things yourself the windows are tiled automatically; "Reset layout" goes back to that.
+let layoutCustom = false, zTop = 1;
+const GAP = 8, MIN_W = 160, MIN_H = 90;
+const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+const gridBox = () => ({ w: $('#grid').clientWidth, h: $('#grid').clientHeight });
+const rectOf = t => ({ x: t.offsetLeft, y: t.offsetTop, w: t.offsetWidth, h: t.offsetHeight });
+function setRect(t, x, y, w, h) { Object.assign(t.style, { left: x + 'px', top: y + 'px', width: w + 'px', height: h + 'px' }); }
+function autoLayout() {
+  const { w, h } = gridBox(); if (!w || !h) return;
+  const tiles = [...$('#grid').children], n = tiles.length; if (!n) return;
+  const cols = n <= 1 ? 1 : n <= 4 ? 2 : n <= 9 ? 3 : 4, rows = Math.ceil(n / cols);
+  const cw = (w - GAP * (cols + 1)) / cols, ch = (h - GAP * (rows + 1)) / rows;
+  tiles.forEach((t, i) => {
+    const c = i % cols, r = Math.floor(i / cols);
+    let tw = cw, th = tw * 9 / 16; if (th > ch) { th = ch; tw = th * 16 / 9; }
+    setRect(t, Math.round(GAP + c * (cw + GAP) + (cw - tw) / 2), Math.round(GAP + r * (ch + GAP) + (ch - th) / 2), Math.round(tw), Math.round(th));
+  });
 }
+function clampAll() {
+  const { w, h } = gridBox(); if (!w || !h) return;
+  for (const t of $('#grid').children) {
+    const r = rectOf(t), tw = Math.min(r.w, w), th = Math.min(r.h, h);
+    setRect(t, clamp(r.x, 0, w - tw), clamp(r.y, 0, h - th), tw, th);
+  }
+}
+function layoutGrid() {
+  if (!layoutCustom) return autoLayout();
+  const { w, h } = gridBox(); let k = 0;
+  for (const t of $('#grid').children) if (!t.style.width) { // a newcomer in a hand-arranged layout cascades in
+    const tw = Math.min(360, w - 2 * GAP), th = Math.round(tw * 9 / 16);
+    setRect(t, clamp(GAP + k * 24, 0, Math.max(0, w - tw)), clamp(GAP + k * 24, 0, Math.max(0, h - th)), tw, th); k++;
+  }
+  clampAll();
+}
+new ResizeObserver(() => (layoutCustom ? clampAll() : autoLayout())).observe($('#grid'));
 
 
 // A tile can fill the call area (double-click) or the whole screen (the full-screen button, Esc to leave).
@@ -515,37 +547,46 @@ function makeTile(user, self) {
   return tile;
 }
 
-// Video tiles can be dragged onto each other to swap places. The new order lasts until you leave the call.
-let dragTile = null;
 function makeDraggable(tile) {
-  tile.draggable = true;
-  tile.title = 'Drag onto another window to swap places. Double-click to fill the screen with it.';
-  tile.addEventListener('dblclick', () => spotTile(tile, !tile.classList.contains('spot')));
-
+  tile.title = 'Drag to move, drag an edge or corner to resize. Double-click to fill the call area.';
   tile.querySelector('video').draggable = false;
-  tile.addEventListener('dragstart', e => {
-    dragTile = tile; tile.classList.add('dragging');
-    e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', 'skippy-tile');
-  });
-  tile.addEventListener('dragend', () => {
-    tile.classList.remove('dragging'); dragTile = null;
-    for (const t of $('#grid').children) t.classList.remove('drop-target');
-  });
-  tile.addEventListener('dragover', e => {
-    if (!dragTile || dragTile === tile) return;
-    e.preventDefault(); e.dataTransfer.dropEffect = 'move'; tile.classList.add('drop-target');
-  });
-  tile.addEventListener('dragleave', () => tile.classList.remove('drop-target'));
-  tile.addEventListener('drop', e => {
-    e.preventDefault(); tile.classList.remove('drop-target');
-    if (dragTile && dragTile !== tile) swapTiles(dragTile, tile);
+  tile.addEventListener('dblclick', () => spotTile(tile, !tile.classList.contains('spot')));
+  for (const d of ['n', 's', 'e', 'w', 'ne', 'nw', 'se', 'sw']) {
+    const h = document.createElement('div'); h.className = 'rz rz-' + d; h.dataset.dir = d; tile.appendChild(h);
+  }
+  tile.addEventListener('pointerdown', e => {
+    if (e.button !== 0 || e.target.closest('button') || tile.classList.contains('spot')) return;
+    const dir = e.target.dataset.dir || ''; // empty = move the whole window
+    const start = rectOf(tile), sx = e.clientX, sy = e.clientY;
+    let moved = false;
+    tile.style.zIndex = ++zTop;
+    tile.setPointerCapture(e.pointerId);
+    const move = ev => {
+      const dx = ev.clientX - sx, dy = ev.clientY - sy;
+      if (!moved) { if (Math.abs(dx) + Math.abs(dy) < 4) return; moved = true; layoutCustom = true; tile.classList.add('dragging'); }
+      const { w: gw, h: gh } = gridBox();
+      let { x, y, w, h } = start;
+      if (!dir) { x = clamp(x + dx, 0, gw - w); y = clamp(y + dy, 0, gh - h); }
+      else {
+        if (dir.includes('e')) w = clamp(start.w + dx, MIN_W, gw - start.x);
+        if (dir.includes('s')) h = clamp(start.h + dy, MIN_H, gh - start.y);
+        if (dir.includes('w')) { x = clamp(start.x + dx, 0, start.x + start.w - MIN_W); w = start.x + start.w - x; }
+        if (dir.includes('n')) { y = clamp(start.y + dy, 0, start.y + start.h - MIN_H); h = start.y + start.h - y; }
+      }
+      setRect(tile, x, y, w, h);
+    };
+    const up = () => {
+      tile.removeEventListener('pointermove', move); tile.removeEventListener('pointerup', up); tile.removeEventListener('pointercancel', up);
+      tile.classList.remove('dragging');
+    };
+    tile.addEventListener('pointermove', move); tile.addEventListener('pointerup', up); tile.addEventListener('pointercancel', up);
   });
 }
-function swapTiles(a, b) {
-  const grid = $('#grid');
-  const ph = document.createElement('div'); // marker so both can swap even when they are neighbours
-  grid.replaceChild(ph, a); grid.replaceChild(a, b); grid.replaceChild(b, ph);
-}
+$('#btn-reset-layout').onclick = () => {
+  layoutCustom = false; $('#grid').classList.remove('spot');
+  for (const t of $('#grid').children) { t.classList.remove('spot'); t.style.zIndex = ''; }
+  autoLayout();
+};
 function addSelfTile() {
   const tile = makeTile(me, true); tile.id = 'self-tile';
   $('#grid').appendChild(tile);
@@ -649,10 +690,8 @@ function setChatWidth(w) {
   sm.checked = lsGet('startMuted', '0') === '1';
   sm.onchange = () => lsSet('startMuted', sm.checked ? '1' : '0');
   $('#btn-chat').onclick = () => setChat(!chatShown());
-  const size = $('#tile-size');
-  const applySize = () => { $('#grid').style.setProperty('--tile-w', size.value + '%'); lsSet('tileSize', size.value); };
-  size.value = lsGet('tileSize', '100'); applySize();
-  size.oninput = applySize;
+  $('#btn-devices').onclick = e => { e.stopPropagation(); $('#dev-pop').classList.toggle('hidden'); };
+  document.addEventListener('click', e => { if (!e.target.closest('#dev-pop')) $('#dev-pop').classList.add('hidden'); });
   window.addEventListener('resize', () => { if (chatShown()) setChatWidth(parseInt($('#side').style.width, 10) || 320); });
 }
 

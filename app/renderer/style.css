@@ -64,26 +64,20 @@ button.danger { background: var(--danger); border: none; color: #fff; padding: 9
 
 /* call */
 .call-body { flex: 1; display: flex; min-height: 0; }
-.grid { flex: 1; display: grid; gap: 8px; padding: 8px; min-width: 0; align-content: center; }
-.tile { position: relative; background: #000; border-radius: 8px; overflow: hidden; aspect-ratio: 16/9; min-height: 0; }
+.grid { flex: 1; position: relative; overflow: hidden; min-width: 0; }
+.tile { position: absolute; z-index: 0; left: 0; top: 0; width: 320px; height: 180px; background: #000; border-radius: 8px; overflow: hidden; cursor: grab; touch-action: none; user-select: none; }
 .tile video { width: 100%; height: 100%; object-fit: contain; background: #000; }
 .tile.self video { transform: scaleX(-1); }
 .tile[draggable="true"] { cursor: grab; }
-.tile.dragging { opacity: .45; cursor: grabbing; }
+.tile.dragging { opacity: .85; cursor: grabbing; box-shadow: 0 6px 24px rgba(0,0,0,.6); }
 .tile.drop-target { outline: 3px solid var(--accent, #4da3ff); outline-offset: -3px; }
 .tile .label { position: absolute; left: 8px; bottom: 8px; background: rgba(0,0,0,.6); padding: 2px 8px; border-radius: 4px; font-size: 12px; }
 .tile .state { position: absolute; right: 8px; top: 8px; font-size: 11px; color: var(--muted); background: rgba(0,0,0,.6); padding: 1px 6px; border-radius: 4px; }
 .tile .avatar { position: absolute; inset: 0; display: none; align-items: center; justify-content: center; font-size: 44px; color: var(--muted); background: var(--panel2); }
 .tile.novideo .avatar { display: flex; }
-.grid { overflow: auto; }
-.tile { justify-self: center; width: var(--tile-w, 100%); }
 .tile.self.sharing video { transform: none; }
-.grid.spot { grid-template-columns: minmax(0, 1fr) !important; }
-.grid.spot .tile:not(.spot) { display: none; }
 .side-resizer { width: 6px; cursor: col-resize; background: var(--line); flex: none; touch-action: none; }
 .side-resizer:hover, .side-resizer.active { background: var(--accent, #4da3ff); }
-.ctl-size { display: flex; align-items: center; gap: 6px; margin: 0; font-size: 12px; color: var(--muted); }
-.ctl-size input { width: 90px; margin: 0; padding: 0; }
 .ctl.on { background: #1f4a2c; border-color: #3fb950; }
 .wide-card { max-width: 760px; width: 90%; }
 .screen-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 10px; max-height: 55vh; overflow: auto; margin: 10px 0; }
@@ -140,11 +134,25 @@ button.icon { background: var(--panel2); border: 1px solid var(--line); color: v
 #sec-qr { background: #fff; border-radius: 6px; }
 .tile-fs { position: absolute; right: 8px; bottom: 8px; background: rgba(0,0,0,.6); color: #fff; border: 0; border-radius: 4px; padding: 2px 8px; font-size: 16px; cursor: pointer; opacity: 0; transition: opacity .15s; }
 .tile:hover .tile-fs { opacity: 1; }
-.grid.spot { align-content: stretch; grid-template-rows: minmax(0, 1fr); }
-.grid.spot .tile.spot { width: 100%; height: 100%; aspect-ratio: auto; }
 body.fs .topbar, body.fs .controls, body.fs .side, body.fs .side-resizer, body.fs #update-banner { display: none !important; }
 body.fs .grid { padding: 0; }
 body.fs .tile.spot { border-radius: 0; }
 .tile.sharing .avatar { font-size: 22px; }
 .tile .mic { position: absolute; left: 8px; top: 8px; background: rgba(0,0,0,.6); padding: 1px 6px; border-radius: 4px; font-size: 13px; }
 .tile .mic.muted { background: rgba(160,30,40,.85); }
+
+.grid.spot .tile.spot { left: 0 !important; top: 0 !important; width: 100% !important; height: 100% !important; border-radius: 0; cursor: default; }
+.grid.spot .tile:not(.spot) { display: none; }
+.rz { position: absolute; z-index: 3; }
+.rz-n, .rz-s { left: 8px; right: 8px; height: 7px; cursor: ns-resize; }
+.rz-e, .rz-w { top: 8px; bottom: 8px; width: 7px; cursor: ew-resize; }
+.rz-n { top: 0; } .rz-s { bottom: 0; } .rz-e { right: 0; } .rz-w { left: 0; }
+.rz-ne, .rz-nw, .rz-se, .rz-sw { width: 14px; height: 14px; }
+.rz-ne { top: 0; right: 0; cursor: nesw-resize; } .rz-sw { bottom: 0; left: 0; cursor: nesw-resize; }
+.rz-nw { top: 0; left: 0; cursor: nwse-resize; } .rz-se { bottom: 0; right: 0; cursor: nwse-resize; }
+.grid.spot .rz, body.fs .rz { display: none; }
+#screen-call .topbar { gap: 8px; flex-wrap: wrap; }
+#screen-call .ctl { padding: 6px 10px; }
+.dev-wrap { position: relative; }
+.dev-pop { position: absolute; top: calc(100% + 8px); left: 0; z-index: 30; width: 240px; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 10px; display: flex; flex-direction: column; gap: 8px; box-shadow: 0 8px 24px rgba(0,0,0,.5); }
+.dev-pop .ctl-select { width: 100%; }
