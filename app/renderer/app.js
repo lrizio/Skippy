@@ -368,7 +368,7 @@ async function startLocal() {
 }
 
 function applyTrackStates() {
-  localStream?.getAudioTracks().forEach(t => t.enabled = micOn);
+  localStream?.getAudioTracks().forEach(t => t.enabled = micOn || !room); // in the lobby the mic stays live so the level meter works
   localStream?.getVideoTracks().forEach(t => t.enabled = camOn);
   $('#btn-mic').textContent = micOn ? 'Mute' : 'Unmute';
   $('#btn-mic').classList.toggle('off', !micOn);
@@ -434,13 +434,27 @@ function renderOpenRooms() {
 function joinRoom(name) {
   $('#join-error').textContent = '';
   wantedRoom = name; dmWith = null;
+  micOn = false; // every call starts muted
   wsSend({ t: 'join', room: name });
 }
 $('#form-join').onsubmit = e => { e.preventDefault(); joinRoom($('#room-name').value.trim()); };
 
 // ---------- call ----------
+// ---- connection clock ----
+let callStart = 0, callStartRoom = null;
+const fmtDuration = ms => {
+  const s = Math.max(0, Math.floor(ms / 1000)), h = Math.floor(s / 3600), mm = Math.floor(s % 3600 / 60), ss = s % 60;
+  return (h ? h + ':' + String(mm).padStart(2, '0') : String(mm)) + ':' + String(ss).padStart(2, '0');
+};
+setInterval(() => { if (callStart) $('#call-timer').textContent = fmtDuration(Date.now() - callStart); }, 1000);
+
 function onJoined(m) {
   room = m.room; wantedRoom = null;
+  if (callStartRoom !== room) { // a reconnect to the same room keeps counting
+    callStart = Date.now(); callStartRoom = room;
+    if (!micOn) toast('You are muted - press Unmute to speak.');
+  }
+  $('#call-timer').textContent = fmtDuration(Date.now() - callStart);
   show('screen-call');
   $('#conn-banner').classList.add('hidden');
   roster.clear();
@@ -632,6 +646,7 @@ function hardLeave() {
   closeAllPeers();
   if (room) wsSend({ t: 'leave' });
   room = null; roster.clear();
+  callStart = 0; callStartRoom = null;
 }
 $('#btn-leave').onclick = async () => { wantedRoom = null; hardLeave(); await showLobby(); };
 
@@ -875,6 +890,7 @@ $('#btn-decline').onclick = () => {
 function startDirect(m) {
   outgoingCall = null; showModal('calling', false); showModal('incoming', false); stopRing();
   dmWith = m.with;
+  micOn = false; // every call starts muted
   closeAllPeers(); // leave whatever room we were in; the server moves us when we join
   wantedRoom = m.room;
   wsSend({ t: 'join', room: m.room });

@@ -211,7 +211,8 @@ def build():
     f.append(P("In a call", style_h2))
     f.append(table([
         ["Control", "What it does"],
-        ["<b>Mute / Unmute</b>", "Stops or restarts your microphone. Others see nothing change on your tile; they simply stop hearing you."],
+        ["<b>Mute / Unmute</b>", "Stops or restarts your microphone. <b>Every call starts muted</b> - press Unmute when you want to speak. Others see nothing change on your tile; they simply stop hearing you."],
+        ["<b>Call clock</b>", "Next to the head count, shows how long you have been connected to this call."],
         ["<b>Stop video / Start video</b>", "Turns your camera off or on. Others see your initial on a grey tile while it is off."],
         ["<b>Mic, Camera, Speaker</b> lists", "Switch devices without leaving the call."],
         ["<b>Leave</b>", "Leaves the call and returns to the lobby."],
