@@ -10,6 +10,8 @@ contextBridge.exposeInMainWorld('skippy', {
   openExternal: url => ipcRenderer.send('open:external', url),
   hideToTray: () => ipcRenderer.send('win:hide'),
   showWindow: () => ipcRenderer.send('win:show'),
+  screenSources: () => ipcRenderer.invoke('screen:sources'),
+  screenPick: id => ipcRenderer.invoke('screen:pick', id),
   // received files are written to disk by the main process instead of piling up in memory
   fileOpen: id => ipcRenderer.invoke('file:open', id),
   fileWrite: (id, data) => ipcRenderer.send('file:write', id, data),

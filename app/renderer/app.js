@@ -362,7 +362,7 @@ async function startLocal() {
   // swap the new tracks into every live connection without renegotiating
   for (const p of peers.values()) {
     await p.senders.audio?.replaceTrack(stream.getAudioTracks()[0] || null);
-    await p.senders.video?.replaceTrack(stream.getVideoTracks()[0] || null);
+    if (!screenStream) await p.senders.video?.replaceTrack(stream.getVideoTracks()[0] || null);
   }
   updateSelfTile();
 }
@@ -378,7 +378,7 @@ function applyTrackStates() {
   for (const p of peers.values()) sendState(p);
 }
 function sendState(p) {
-  if (p.dc?.readyState === 'open') p.dc.send(JSON.stringify({ k: 'state', mic: micOn, cam: camOn }));
+  if (p.dc?.readyState === 'open') p.dc.send(JSON.stringify({ k: 'state', mic: micOn, cam: camOn || !!screenStream }));
 }
 $('#btn-mic').onclick = () => { micOn = !micOn; applyTrackStates(); };
 $('#btn-cam').onclick = () => { camOn = !camOn; applyTrackStates(); };
@@ -461,6 +461,9 @@ function onJoined(m) {
   roster.set(m.me.id, m.me);
   for (const p of m.peers) roster.set(p.id, p);
   $('#grid').innerHTML = '';
+  $('#grid').classList.remove('spot');
+  setChat(lsGet('chatOn', '1') === '1');
+  shareChanged();
   addSelfTile();
   for (const p of m.peers) makePeer(p, true);
   renderHistory(m.history);
@@ -498,7 +501,13 @@ function makeTile(user, self) {
 let dragTile = null;
 function makeDraggable(tile) {
   tile.draggable = true;
-  tile.title = 'Drag onto another window to swap places';
+  tile.title = 'Drag onto another window to swap places. Double-click to fill the screen with it.';
+  tile.addEventListener('dblclick', () => {
+    const on = !tile.classList.contains('spot');
+    for (const t of $('#grid').children) t.classList.remove('spot');
+    tile.classList.toggle('spot', on);
+    $('#grid').classList.toggle('spot', on);
+  });
   tile.querySelector('video').draggable = false;
   tile.addEventListener('dragstart', e => {
     dragTile = tile; tile.classList.add('dragging');
@@ -530,8 +539,101 @@ function addSelfTile() {
 }
 function updateSelfTile() {
   const tile = $('#self-tile'); if (!tile) return;
-  tile.querySelector('video').srcObject = localStream;
-  tile.classList.toggle('novideo', !camOn || !localStream?.getVideoTracks().some(t => t.readyState === 'live'));
+  tile.querySelector('video').srcObject = screenStream || localStream;
+  tile.classList.toggle('sharing', !!screenStream);
+  tile.classList.toggle('novideo', !screenStream && (!camOn || !localStream?.getVideoTracks().some(t => t.readyState === 'live')));
+}
+
+// ---------- screen share ----------
+// The screen track replaces the camera track on every connection (no renegotiation); stopping puts the camera back.
+let screenStream = null;
+const cameraTrack = () => localStream?.getVideoTracks()[0] || null;
+async function setOutgoingVideo(track) {
+  for (const p of peers.values()) await p.senders.video?.replaceTrack(track).catch(() => {});
+}
+async function openScreenPicker() {
+  $('#screen-error').textContent = '';
+  const list = $('#screen-list'); list.textContent = 'Looking for screens…';
+  $('#modal-screens').classList.remove('hidden');
+  let srcs = [];
+  try { srcs = await api.screenSources(); } catch (e) { list.textContent = ''; $('#screen-error').textContent = 'Could not list screens.'; return; }
+  list.textContent = '';
+  for (const s of srcs) {
+    const b = document.createElement('button'); b.type = 'button';
+    const img = document.createElement('img'); img.src = s.thumb; img.alt = '';
+    const lab = document.createElement('span'); lab.textContent = s.name;
+    b.append(img, lab);
+    b.onclick = () => startShare(s.id);
+    list.appendChild(b);
+  }
+  if (!srcs.length) list.textContent = 'Nothing to share.';
+}
+async function startShare(id) {
+  try {
+    await api.screenPick(id);
+    const stream = await navigator.mediaDevices.getDisplayMedia({ video: { frameRate: { ideal: 15 } }, audio: false });
+    $('#modal-screens').classList.add('hidden');
+    stopShare(true);
+    screenStream = stream;
+    const track = stream.getVideoTracks()[0];
+    if ('contentHint' in track) track.contentHint = 'detail';
+    track.onended = () => stopShare();
+    await setOutgoingVideo(track);
+    shareChanged();
+  } catch (e) {
+    $('#screen-error').textContent = 'Could not start sharing.';
+  }
+}
+function stopShare(silent) {
+  if (!screenStream) return;
+  screenStream.getTracks().forEach(t => { t.onended = null; t.stop(); });
+  screenStream = null;
+  if (silent) return;
+  setOutgoingVideo(cameraTrack());
+  shareChanged();
+}
+function shareChanged() {
+  $('#btn-share').textContent = screenStream ? 'Stop sharing' : 'Share screen';
+  $('#btn-share').classList.toggle('on', !!screenStream);
+  updateSelfTile();
+  for (const p of peers.values()) sendState(p);
+}
+$('#btn-share').onclick = () => { if (screenStream) stopShare(); else openScreenPicker(); };
+$('#btn-screens-close').onclick = () => $('#modal-screens').classList.add('hidden');
+
+// ---------- chat panel + window sizing ----------
+const lsGet = (k, d) => { try { return localStorage.getItem(k) ?? d; } catch { return d; } };
+const lsSet = (k, v) => { try { localStorage.setItem(k, v); } catch {} };
+let chatUnread = 0;
+const chatShown = () => !$('#side').classList.contains('hidden');
+function setChat(on) {
+  $('#side').classList.toggle('hidden', !on);
+  $('#side-resizer').classList.toggle('hidden', !on);
+  if (on) chatUnread = 0;
+  $('#btn-chat').textContent = on ? 'Hide chat' : chatUnread ? `Show chat (${chatUnread})` : 'Show chat';
+  lsSet('chatOn', on ? '1' : '0');
+  if (on) scrollLog();
+}
+function setChatWidth(w) {
+  w = Math.max(200, Math.min(w, Math.round(window.innerWidth * 0.6)));
+  $('#side').style.width = w + 'px';
+  return w;
+}
+{
+  const rs = $('#side-resizer');
+  rs.onpointerdown = e => { rs.setPointerCapture(e.pointerId); rs.classList.add('active'); };
+  rs.onpointermove = e => { if (rs.hasPointerCapture(e.pointerId)) setChatWidth(window.innerWidth - e.clientX); };
+  rs.onpointerup = e => {
+    rs.releasePointerCapture(e.pointerId); rs.classList.remove('active');
+    lsSet('chatW', String(parseInt($('#side').style.width, 10) || 320));
+  };
+  setChatWidth(parseInt(lsGet('chatW', '320'), 10) || 320);
+  $('#btn-chat').onclick = () => setChat(!chatShown());
+  const size = $('#tile-size');
+  const applySize = () => { $('#grid').style.setProperty('--tile-w', size.value + '%'); lsSet('tileSize', size.value); };
+  size.value = lsGet('tileSize', '100'); applySize();
+  size.oninput = applySize;
+  window.addEventListener('resize', () => { if (chatShown()) setChatWidth(parseInt($('#side').style.width, 10) || 320); });
 }
 
 function iceConfig() { return { iceServers: S.iceServers }; }
@@ -551,7 +653,8 @@ function makePeer(user, initiator = false) {
   for (const kind of ['audio', 'video']) {
     const tr = pc.addTransceiver(kind, { direction: 'sendrecv' });
     p.senders[kind] = tr.sender;
-    const track = localStream?.[kind === 'audio' ? 'getAudioTracks' : 'getVideoTracks']()[0];
+    const track = kind === 'video' && screenStream ? screenStream.getVideoTracks()[0]
+      : localStream?.[kind === 'audio' ? 'getAudioTracks' : 'getVideoTracks']()[0];
     if (track) tr.sender.replaceTrack(track).catch(() => {});
   }
   p.dc = pc.createDataChannel('skippy', { negotiated: true, id: 0 });
@@ -636,6 +739,7 @@ function closePeer(id) {
     const { id: fid, f } = p.incoming;
     f.failed = true; api.fileDiscard(fid); refreshFileEls(fid);
   }
+  if (p.tile.classList.contains('spot')) $('#grid').classList.remove('spot');
   p.dc?.close(); p.pc.close(); p.tile.remove();
   peers.delete(id);
   updateBitrates(); layoutGrid();
@@ -643,7 +747,9 @@ function closePeer(id) {
 function closeAllPeers() { for (const id of [...peers.keys()]) closePeer(id); }
 
 function hardLeave() {
+  stopShare(); // before closing the connections, so the camera is restored cleanly
   closeAllPeers();
+  $('#grid').classList.remove('spot');
   if (room) wsSend({ t: 'leave' });
   room = null; roster.clear();
   callStart = 0; callStartRoom = null;
@@ -686,6 +792,7 @@ function addMessage(m, live) {
     log.appendChild(d);
   }
   if (live) scrollLog();
+  if (live && m.userId !== me.id && !chatShown()) { chatUnread++; $('#btn-chat').textContent = `Show chat (${chatUnread})`; }
 }
 
 $('#chat-form').onsubmit = e => {

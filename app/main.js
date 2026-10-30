@@ -1,5 +1,5 @@
 'use strict';
-const { app, BrowserWindow, ipcMain, session, safeStorage, shell, Tray, Menu, nativeImage, dialog } = require('electron');
+const { app, BrowserWindow, ipcMain, session, safeStorage, shell, Tray, Menu, nativeImage, dialog, desktopCapturer } = require('electron');
 const fs = require('fs');
 const QRCode = require('qrcode');
 const path = require('path');
@@ -170,6 +170,13 @@ ipcMain.handle('update:check', async (_e, wsUrl) => {
 });
 ipcMain.handle('qr:make', (_e, text) => QRCode.toDataURL(String(text), { margin: 1, width: 220 }));
 ipcMain.on('open:external', (_e, url) => { if (/^https?:\/\//i.test(String(url))) shell.openExternal(String(url)); });
+// Screen sharing: the renderer lists screens/windows, the user picks one, then getDisplayMedia is answered with that source.
+let pickedSource = null;
+ipcMain.handle('screen:sources', async () => {
+  const srcs = await desktopCapturer.getSources({ types: ['screen', 'window'], thumbnailSize: { width: 320, height: 180 }, fetchWindowIcons: false });
+  return srcs.map(s => ({ id: s.id, name: s.name, thumb: s.thumbnail.toDataURL() }));
+});
+ipcMain.handle('screen:pick', (_e, id) => { pickedSource = String(id); });
 ipcMain.on('win:hide', hideToTray);
 ipcMain.on('win:show', showWindow);
 
@@ -215,7 +222,14 @@ if (!app.requestSingleInstanceLock()) {
   app.whenReady().then(() => {
     loadSettings();
     clearIncoming();
-    const allowed = ['media', 'speaker-selection', 'notifications'];
+    session.defaultSession.setDisplayMediaRequestHandler((_req, cb) => {
+      const id = pickedSource; pickedSource = null;
+      if (!id) return cb({});
+      desktopCapturer.getSources({ types: ['screen', 'window'] })
+        .then(srcs => { const s = srcs.find(x => x.id === id); cb(s ? { video: s } : {}); })
+        .catch(() => cb({}));
+    });
+    const allowed = ['media', 'speaker-selection', 'notifications', 'display-capture'];
     session.defaultSession.setPermissionRequestHandler((_wc, permission, cb) => cb(allowed.includes(permission)));
     session.defaultSession.setPermissionCheckHandler((_wc, permission) => allowed.includes(permission));
     createTray();

@@ -144,7 +144,8 @@
   </header>
   <div class="call-body">
     <div id="grid" class="grid"></div>
-    <aside class="side">
+    <div id="side-resizer" class="side-resizer" title="Drag to resize the chat"></div>
+    <aside class="side" id="side">
       <div class="side-head">Chat</div>
       <div id="chat-log" class="chat-log"></div>
       <form id="chat-form" class="chat-form">
@@ -158,6 +159,9 @@
   <footer class="controls">
     <button id="btn-mic" class="ctl" type="button">Mute</button>
     <button id="btn-cam" class="ctl" type="button">Stop video</button>
+    <button id="btn-share" class="ctl" type="button" title="Show your screen or a window to everyone">Share screen</button>
+    <button id="btn-chat" class="ctl" type="button" title="Show or hide the chat">Hide chat</button>
+    <label class="ctl-size" title="Size of the video windows (double-click a window to fill the screen with it)">Windows <input id="tile-size" type="range" min="30" max="100" value="100"></label>
     <label class="ctl-select">Mic <select id="call-mic"></select></label>
     <label class="ctl-select">Camera <select id="call-cam"></select></label>
     <label class="ctl-select">Speaker <select id="call-spk"></select></label>
@@ -234,6 +238,14 @@
       <button class="ghost" id="btn-recovery-copy" type="button">Copy key</button>
       <button class="primary" id="btn-recovery-done" type="button">I have saved it</button>
     </div>
+  </div>
+</div>
+<div id="modal-screens" class="modal hidden">
+  <div class="modal-card wide-card">
+    <h2>Share what?</h2>
+    <div id="screen-list" class="screen-list"></div>
+    <div id="screen-error" class="error"></div>
+    <button class="ghost" id="btn-screens-close" type="button">Cancel</button>
   </div>
 </div>
 <div id="modal-incoming" class="modal hidden">
