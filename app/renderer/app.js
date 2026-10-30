@@ -478,7 +478,7 @@ function onJoined(m) {
   refreshDevices();
 }
 
-function updateCount() { $('#call-count').textContent = `${roster.size} / 10`; setRoomTitle(); layoutGrid(); }
+function updateCount() { setRoomTitle(); layoutGrid(); }
 function setRoomTitle() {
   if (!room) return;
   $('#call-room').textContent = !room.startsWith('@') ? '# ' + room
@@ -1025,16 +1025,18 @@ function stopRing() {
 }
 
 function renderPeople() {
-  const box = $('#people-list'); box.innerHTML = '';
   const others = online.filter(u => !me || u.id !== me.id);
-  if (!others.length) { box.textContent = 'Nobody else is online.'; box.classList.add('muted'); return; }
-  box.classList.remove('muted');
-  for (const u of others) {
-    const row = document.createElement('div'); row.className = 'person';
-    const nm = document.createElement('span'); nm.textContent = u.name + (u.callsign ? ` (${u.callsign})` : '');
-    const b = document.createElement('button'); b.className = 'primary'; b.type = 'button'; b.textContent = 'Call';
-    b.onclick = () => placeCall(u.id);
-    row.append(nm, b); box.appendChild(row);
+  for (const box of [$('#people-list'), $('#online-list')]) {
+    box.innerHTML = '';
+    if (!others.length) { box.textContent = 'Nobody else is online.'; box.classList.add('muted'); continue; }
+    box.classList.remove('muted');
+    for (const u of others) {
+      const row = document.createElement('div'); row.className = 'person';
+      const nm = document.createElement('span'); nm.textContent = u.name + (u.callsign ? ` (${u.callsign})` : '');
+      const b = document.createElement('button'); b.className = 'primary'; b.type = 'button'; b.textContent = 'Call';
+      b.onclick = () => placeCall(u.id);
+      row.append(nm, b); box.appendChild(row);
+    }
   }
 }
 function placeCall(to) {

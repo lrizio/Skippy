@@ -204,7 +204,7 @@ def build():
                "agree a name with your group (for example <i>weeknight-net</i>). Names are not case sensitive. "
                "A room holds <b>10 people</b>; an eleventh person is told the room is full. Rooms you have used "
                "appear under <b>Recent rooms</b> for one-click joining. <b>Rooms in use</b> lists every named room that "
-               "has someone in it right now, with a head count - click one to join. (Private direct calls are never listed.)"))
+               "has someone in it right now, with a head count - click one to join. (Private direct calls are never listed.) <b>Who is online</b>, below Recent rooms, lists everyone else who is logged in, each with a <b>Call</b> button."))
 
     # -------------------------------------------------------------------------
     f.append(CondPageBreak(4 * inch))
@@ -222,7 +222,7 @@ def build():
         ["<b>Leave</b>", "Leaves the call and returns to the lobby."],
         ["<b>Call someone</b> / <b>Add someone</b>", "Opens the list of people online so you can ring one of them (see <i>Calling someone directly</i>). Inside a call it adds them to that call."],
         ["<b>Moving and resizing windows</b>", "Every video window is a free-floating window. <b>Drag it</b> to move it (for example to put one person above another) and <b>drag any edge or corner</b> to resize it, like an ordinary window. Click a window to bring it to the front. The layout lasts until you leave the call or press <b>Reset layout</b>."],
-        ["Header (e.g. <i>2 / 10</i>)", "How many people are in the room out of the maximum."],
+        ["Call timer", "The large clock in the title bar, just left of the buttons, shows how long you have been connected to this call."],
     ], [2.0, 5.2]))
     f.append(Spacer(1, 6))
     f.append(P("Each person has a tile that shows the connection state while it is being set up. "

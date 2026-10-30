@@ -126,6 +126,8 @@
       <div id="open-rooms" class="recent"></div>
       <h3>Recent rooms</h3>
       <div id="recent-rooms" class="recent"></div>
+      <h3>Who is online</h3>
+      <div id="online-list" class="people"></div>
     </div>
   </div>
   <div class="version muted" id="version-lobby"></div>
@@ -136,8 +138,9 @@
   <header class="topbar">
     <span class="logo small">Skippy</span>
     <span class="room-title" id="call-room"></span>
-    <span class="count" id="call-count"></span>
-    <span class="count" id="call-timer" title="How long you have been connected to this call">0:00</span>
+    <span id="conn-banner" class="banner hidden">Reconnecting…</span>
+    <span class="grow"></span>
+    <span class="call-timer" id="call-timer" title="How long you have been connected to this call">0:00</span>
     <button id="btn-mic" class="ctl" type="button">Mute</button>
     <button id="btn-cam" class="ctl" type="button">Stop video</button>
     <button id="btn-share" class="ctl" type="button" title="Show your screen or a window to everyone">Share screen</button>
@@ -151,8 +154,6 @@
         <label class="ctl-select">Speaker <select id="call-spk"></select></label>
       </div>
     </div>
-    <span class="grow"></span>
-    <span id="conn-banner" class="banner hidden">Reconnecting…</span>
     <button class="ghost" id="btn-call-call" type="button" title="Ring someone and bring them into this call">➕ Add someone</button>
     <span class="who" id="who-call"></span>
     <button id="btn-leave" class="danger" type="button">Leave</button>

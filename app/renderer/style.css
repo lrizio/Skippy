@@ -43,6 +43,7 @@ button.danger { background: var(--danger); border: none; color: #fff; padding: 9
 .who { color: var(--muted); }
 .room-title { font-weight: 600; }
 .count { color: var(--muted); font-size: 12px; }
+.call-timer { font-size: 22px; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--text); letter-spacing: .5px; padding: 0 6px; }
 .banner { background: #6b4e00; color: #ffd36b; padding: 2px 10px; border-radius: 10px; font-size: 12px; }
 
 /* lobby */
