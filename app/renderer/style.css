@@ -167,3 +167,31 @@ body.fs .tile.spot { border-radius: 0; }
 .person .who-msg .last { display: block; font-size: 12px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .person .who-msg.unread b { color: var(--accent); }
 .person .btns { display: flex; gap: 6px; }
+
+/* ---- 3D buttons: lit top edge, darker rim, drop shadow; they sink when pressed ---- */
+button.ctl, button.primary, button.ghost, button.danger, button.icon, .recent button, .screen-list button {
+  position: relative;
+  background-image: linear-gradient(180deg, rgba(255,255,255,.22) 0%, rgba(255,255,255,.06) 48%, rgba(0,0,0,.18) 100%);
+  border: 1px solid rgba(0,0,0,.55);
+  border-bottom-color: rgba(0,0,0,.8);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.35), inset 0 -2px 0 rgba(0,0,0,.35), 0 3px 0 rgba(0,0,0,.55), 0 5px 8px rgba(0,0,0,.4);
+  text-shadow: 0 -1px 0 rgba(0,0,0,.45);
+  transition: transform .06s, box-shadow .06s, filter .12s;
+}
+button.ctl:hover, button.primary:hover, button.ghost:hover, button.danger:hover, button.icon:hover, .recent button:hover {
+  filter: brightness(1.15);
+}
+button.ctl:active, button.primary:active, button.ghost:active, button.danger:active, button.icon:active, .recent button:active, .screen-list button:active {
+  transform: translateY(3px);
+  box-shadow: inset 0 2px 4px rgba(0,0,0,.55), 0 0 0 rgba(0,0,0,0);
+  filter: brightness(.92);
+}
+button.ctl:disabled, button.primary:disabled, button.ghost:disabled, .recent button:disabled { opacity: .5; box-shadow: inset 0 1px 0 rgba(255,255,255,.2), 0 1px 0 rgba(0,0,0,.5); cursor: default; filter: none; transform: none; }
+button.ctl { background-color: #34414f; border-radius: 8px; font-weight: 600; margin-bottom: 3px; }
+button.ctl.off { background-color: #b3363b; }
+button.primary { background-color: var(--accent); }
+button.primary:hover { background-color: var(--accent); }
+button.danger { background-color: var(--danger); }
+button.ghost, button.icon, .recent button, .screen-list button { background-color: #2b3541; color: var(--text); }
+button.ghost:hover { background-color: #2b3541; }
+.tabs button, .dev-wrap button.ctl + * button { box-shadow: none; }

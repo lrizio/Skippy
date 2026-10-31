@@ -146,6 +146,7 @@ async function onAuthed(m) {
   if (m.recoveryKey) showRecoveryKey(m.recoveryKey); // brand-new account
   else if (!me.hasRecovery) setTimeout(() => toast('Tip: open Security to make a recovery key in case you forget your password.'), 1500);
   if (wantedRoom) { // reconnect case: go straight back into the call
+    await ensureMedia();
     wsSend({ t: 'join', room: wantedRoom });
     return;
   }
@@ -321,6 +322,7 @@ async function onDeviceChosen(kind, value) {
   api.saveSettings({ devices: S.devices });
   await refreshDevices();
   if (kind === 'spk') applySpeaker();
+  else if (!localStream && !room) return; // lobby with devices off: the choice is used when a call starts
   else await startLocal();
 }
 for (const [sels, kind] of [[[selMic, cMic], 'mic'], [[selCam, cCam], 'cam'], [[selSpk, cSpk], 'spk']])
@@ -420,9 +422,19 @@ async function showLobby() {
   room = null;
   show('screen-lobby');
   $('#join-error').textContent = '';
-  await startLocal();
+  await lobbyMedia();
   $('#room-name').focus();
 }
+// With "Keep camera and microphone off in the lobby" ticked, nothing is captured until a call starts.
+const lobbyMediaOff = () => lsGet('lobbyMediaOff', '0') === '1';
+async function lobbyMedia() {
+  if (lobbyMediaOff()) {
+    stopLocal();
+    $('#preview-note').textContent = 'Camera and microphone are off until you join a call.';
+    $('#mic-level').style.width = '0';
+  } else await startLocal();
+}
+async function ensureMedia() { if (!localStream) await startLocal(); } // called before joining a room
 function renderRecent(list) {
   const box = $('#recent-rooms'); box.innerHTML = '';
   if (!list.length) { box.textContent = 'None yet.'; box.classList.add('muted'); return; }
@@ -446,10 +458,11 @@ function renderOpenRooms() {
     box.appendChild(b);
   }
 }
-function joinRoom(name) {
+async function joinRoom(name) {
   $('#join-error').textContent = '';
   wantedRoom = name; dmWith = null;
   micOn = lsGet('startMuted', '0') !== '1'; // unmuted unless the lobby option says otherwise
+  await ensureMedia();
   wsSend({ t: 'join', room: name });
 }
 $('#form-join').onsubmit = e => { e.preventDefault(); joinRoom($('#room-name').value.trim()); };
@@ -698,6 +711,9 @@ function setChatWidth(w) {
   const sm = $('#chk-startmuted');
   sm.checked = lsGet('startMuted', '0') === '1';
   sm.onchange = () => lsSet('startMuted', sm.checked ? '1' : '0');
+  const lo = $('#chk-lobbyoff');
+  lo.checked = lobbyMediaOff();
+  lo.onchange = () => { lsSet('lobbyMediaOff', lo.checked ? '1' : '0'); if (!room) lobbyMedia(); };
   $('#btn-chat').onclick = () => setChat(!chatShown());
   $('#btn-devices').onclick = e => { e.stopPropagation(); $('#dev-pop').classList.toggle('hidden'); };
   document.addEventListener('click', e => { if (!e.target.closest('#dev-pop')) $('#dev-pop').classList.add('hidden'); });
@@ -1105,7 +1121,8 @@ $('#btn-decline').onclick = () => {
   incomingCall = null; showModal('incoming', false); stopRing();
 };
 
-function startDirect(m) {
+async function startDirect(m) {
+  await ensureMedia();
   outgoingCall = null; showModal('calling', false); showModal('incoming', false); stopRing();
   dmWith = m.with;
   micOn = lsGet('startMuted', '0') !== '1'; // unmuted unless the lobby option says otherwise
