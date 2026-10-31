@@ -12,9 +12,9 @@ const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'skippy-guide-'));
 const procs = [];
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
-procs.push(spawn(process.execPath, ['server.js'], { cwd: path.join(ROOT, 'server'), env: { ...process.env, SKIPPY_DB: tmp + '/db.sqlite', SKIPPY_UPDATE_FILE: tmp + '/none.json' }, stdio: 'ignore' }));
-const launch = (port, tag) => procs.push(spawn(ELECTRON, ['.', `--remote-debugging-port=${port}`, `--user-data-dir=${tmp}/${tag}`,
-  '--use-fake-device-for-media-stream', '--use-fake-ui-for-media-stream', '--window-size=1280,800'], { cwd: path.join(ROOT, 'app'), stdio: 'ignore' }));
+procs.push(spawn(process.execPath, ['server.js'], { cwd: path.join(ROOT, 'server'), env: { ...process.env, PORT: '8499', SKIPPY_DB: tmp + '/db.sqlite', SKIPPY_UPDATE_FILE: tmp + '/none.json' }, stdio: 'ignore' }));
+const launch = (port, tag) => { fs.mkdirSync(`${tmp}/${tag}`, { recursive: true }); fs.writeFileSync(`${tmp}/${tag}/settings.json`, JSON.stringify({ serverUrl: 'ws://localhost:8499' })); procs.push(spawn(ELECTRON, ['.', `--remote-debugging-port=${port}`, `--user-data-dir=${tmp}/${tag}`,
+  '--use-fake-device-for-media-stream', '--use-fake-ui-for-media-stream', '--window-size=1280,800'], { cwd: path.join(ROOT, 'app'), stdio: 'ignore' })); };
 const getJson = url => new Promise((res, rej) => http.get(url, r => { let d = ''; r.on('data', c => d += c); r.on('end', () => res(JSON.parse(d))); }).on('error', rej));
 async function cdp(port) {
   let page;
@@ -47,12 +47,20 @@ const click = sel => `document.querySelector('${sel}').click()`;
   await B.ev([setv('#reg-name', 'Bob'), setv('#reg-email', 'bob@example.com'), setv('#reg-call', 'K2XYZ'), setv('#reg-pw', 'battery staple'), submit('#form-register')].join(';'));
   await sleep(2500);
 
+  for (const X of [A, B]) await X.ev(click('#btn-recovery-done')); // new accounts are shown a one-time recovery key first
+  await sleep(500);
   await A.shot('lobby.png');
   await A.ev(click('#btn-call-lobby')); await sleep(500);
   await A.shot('people.png');
   await A.ev(`document.querySelector('#people-list .person button').click()`); await sleep(1200);
   await A.shot('calling.png'); await B.shot('incoming.png');
   await B.ev(click('#btn-decline')); await sleep(800);
+
+  // a call that is hung up before it is answered shows up as a missed call in Bob's lobby
+  await A.ev(click('#btn-call-lobby')); await sleep(500);
+  await A.ev(`document.querySelector('#people-list .person button').click()`); await sleep(1200);
+  await A.ev(click('#btn-cancel-call')); await sleep(1200);
+  await B.shot('missed.png');
 
   // a group room with chat and a file
   for (const X of [A, B]) await X.ev(setv('#room-name', 'weeknight-net') + ';' + submit('#form-join'));

@@ -272,7 +272,17 @@ def build():
         "If you were in another room, you leave it.",
         "<b>Decline</b> tells the caller. If nobody answers within <b>45 seconds</b> the caller is told they did not answer.",
         "Your private chat with that person has its own history, so the conversation continues next time you call.",
-        "People who are logged out cannot be rung: the caller is told they are not online.",
+        "People who are logged out cannot be rung: the caller is told they are not online, but the attempt is saved in the other person's <b>Missed calls</b> list.",
+    ]))
+    f.append(P("Missed calls", style_h2))
+    f.append(P("If a call to you is not answered - it rang out, the caller hung up first, or you were logged out - "
+               "Skippy keeps it. Next time you are in the lobby, a <b>Missed calls</b> list appears above <i>Rooms in use</i> "
+               "showing who called and when:"))
+    f.append(shot("missed.png", width=5.2 * inch, caption="Bob's lobby after Alice rang and hung up before he answered."))
+    f.append(bullets([
+        "<b>Call back</b> rings that person straight away and removes the entry.",
+        "<b>✕</b> dismisses one entry; <b>Clear all</b> empties the list. The list is kept on the server, so it follows you to any computer you log in from, and the last 50 are kept.",
+        "Calls you <b>decline</b> are not counted as missed.",
     ]))
     f.append(P("<b>Adding someone to a call.</b> While you are in a call (a room or a direct call), the button at the top reads "
                "<b>Add someone</b>. Choose a person and they are rung; if they accept they join your current call and you "
