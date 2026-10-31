@@ -63,7 +63,24 @@ if (!db.prepare('PRAGMA table_info(users)').all().some(c => c.name === 'recovery
            ALTER TABLE users ADD COLUMN reset_hash TEXT;
            ALTER TABLE users ADD COLUMN reset_expires INTEGER NOT NULL DEFAULT 0;`);
 
+// calls nobody answered (ring timed out, caller hung up first, or callee was offline), shown on the callee's lobby screen
+db.exec(`CREATE TABLE IF NOT EXISTS missed_calls (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL,
+  from_id INTEGER NOT NULL,
+  from_name TEXT NOT NULL,
+  from_callsign TEXT,
+  ts INTEGER NOT NULL
+)`);
+db.exec('CREATE INDEX IF NOT EXISTS missed_calls_user ON missed_calls(user_id, id)');
+const MAX_MISSED = 50;
+
 const q = {
+  insMissed: db.prepare('INSERT INTO missed_calls (user_id,from_id,from_name,from_callsign,ts) VALUES (?,?,?,?,?)'),
+  trimMissed: db.prepare('DELETE FROM missed_calls WHERE user_id = ? AND id NOT IN (SELECT id FROM missed_calls WHERE user_id = ? ORDER BY id DESC LIMIT ?)'),
+  missed: db.prepare('SELECT * FROM missed_calls WHERE user_id = ? ORDER BY id DESC'),
+  delMissed: db.prepare('DELETE FROM missed_calls WHERE user_id = ? AND id = ?'),
+  clearMissed: db.prepare('DELETE FROM missed_calls WHERE user_id = ?'),
   setTotp: db.prepare('UPDATE users SET totp_secret = ?, totp_enabled = 1, totp_last = ? WHERE id = ?'),
   clearTotp: db.prepare('UPDATE users SET totp_secret = NULL, totp_enabled = 0, totp_last = 0 WHERE id = ?'),
   setTotpLast: db.prepare('UPDATE users SET totp_last = ? WHERE id = ?'),
@@ -193,17 +210,25 @@ function goOffline(c) {
   if (set) { set.delete(c); if (!set.size) online.delete(c.user.id); }
   // drop any calls this connection was part of
   for (const [id, call] of [...calls]) {
-    if (call.fromConn === c) finishCall(id, null, { t: 'call-cancelled', callId: id });
+    if (call.fromConn === c) finishCall(id, null, { t: 'call-cancelled', callId: id }, true);
     else if (call.toId === c.user.id && !online.has(c.user.id))
-      finishCall(id, { t: 'call-failed', msg: `${c.user.name} went offline.` }, null);
+      finishCall(id, { t: 'call-failed', msg: `${c.user.name} went offline.` }, null, true);
   }
   broadcastPresence();
 }
-function finishCall(id, callerMsg, calleeMsg) {
+function finishCall(id, callerMsg, calleeMsg, missed) {
   const call = calls.get(id); if (!call) return;
   clearTimeout(call.timer); calls.delete(id);
   if (callerMsg) send(call.fromConn, callerMsg);
   if (calleeMsg) for (const t of online.get(call.toId) || []) send(t, calleeMsg);
+  if (missed) recordMissed(call.toId, call.from);
+}
+function missedOut(r) { return { id: r.id, from: { id: r.from_id, name: r.from_name, callsign: r.from_callsign || '' }, ts: r.ts }; }
+function sendMissed(c) { send(c, { t: 'missed', calls: q.missed.all(c.user.id).map(missedOut) }); }
+function recordMissed(userId, from) {
+  q.insMissed.run(userId, from.id, from.name, from.callsign || null, Date.now());
+  q.trimMissed.run(userId, userId, MAX_MISSED);
+  for (const t of online.get(userId) || []) sendMissed(t);
 }
 
 function publicUser(u) { return { id: u.id, name: u.name, callsign: u.callsign || '' }; }
@@ -233,6 +258,7 @@ function sendAuthed(c, user, token, extra) {
   send(c, { t: 'authed', user: publicUser(user), totp: !!user.totp_enabled, hasRecovery: !!user.recovery_hash, token,
             rooms: q.recentRooms.all(user.id).map(r => r.room), ...extra });
   goOnline(c);
+  if (q.missed.all(user.id).length) sendMissed(c); // the app starts with an empty list, so nothing to send otherwise
 }
 
 function findUserForLogin(id) {
@@ -395,11 +421,14 @@ function handle(c, m) {
       if (!target) return send(c, { t: 'call-failed', msg: 'No user with that name or callsign.' });
       if (target.id === c.user.id) return send(c, { t: 'call-failed', msg: "You can't call yourself." });
       const conns = online.get(target.id);
-      if (!conns || !conns.size) return send(c, { t: 'call-failed', msg: `${target.name} is not online.` });
+      if (!conns || !conns.size) {
+        if (!(c.room && rooms.get(c.room))) recordMissed(target.id, c.user); // offline callee sees it on next login (not for "add someone" to a call)
+        return send(c, { t: 'call-failed', msg: `${target.name} is not online.` });
+      }
       for (const x of calls.values()) if (x.fromConn === c) return send(c, { t: 'call-failed', msg: 'You are already calling someone.' });
       const callId = crypto.randomUUID();
       const timer = setTimeout(() => finishCall(callId,
-        { t: 'call-failed', msg: `${target.name} did not answer.` }, { t: 'call-cancelled', callId }), CALL_TIMEOUT_MS);
+        { t: 'call-failed', msg: `${target.name} did not answer.` }, { t: 'call-cancelled', callId }, true), CALL_TIMEOUT_MS);
       // calling from inside a call adds the person to that call instead of starting a new private one
       const inRoom = c.room && rooms.get(c.room)?.get(c.user.id) === c ? c.room : null;
       if (inRoom && rooms.get(inRoom).has(target.id)) return send(c, { t: 'call-failed', msg: `${target.name} is already in this call.` });
@@ -411,7 +440,12 @@ function handle(c, m) {
     }
     case 'call-cancel': {
       const call = calls.get(m.callId);
-      if (call && call.fromConn === c) finishCall(m.callId, null, { t: 'call-cancelled', callId: m.callId });
+      if (call && call.fromConn === c) finishCall(m.callId, null, { t: 'call-cancelled', callId: m.callId }, true);
+      return;
+    }
+    case 'missed-dismiss': {
+      if (m.id === 'all') q.clearMissed.run(c.user.id); else q.delMissed.run(c.user.id, Number(m.id) || 0);
+      for (const t of online.get(c.user.id) || []) sendMissed(t);
       return;
     }
     case 'call-answer': {

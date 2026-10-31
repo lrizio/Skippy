@@ -106,6 +106,7 @@ function onServer(m) {
     case 'totp-setup': return onTotpSetup(m);
     case 'totp-enabled': me.totp = true; showSec('codes'); $('#sec-codes-list').textContent = m.backupCodes.join('\n'); return;
     case 'totp-disabled': me.totp = false; $('#sec-error').textContent = ''; showSec('off'); toast('Two-factor authentication is off.'); return;
+    case 'missed': renderMissed(m.calls || []); return;
     case 'presence': online = m.users; openRooms = m.rooms || []; renderPeople(); renderOpenRooms(); return;
     case 'calling': outgoingCall = m; $('#calling-title').textContent = `Calling ${m.to.name}…`; showModal('calling', true); ring('out'); return;
     case 'call-failed':
@@ -131,6 +132,7 @@ async function onAuthed(m) {
   api.saveSettings({ ...patch, serverUrl: ($('#server-url').value || S.serverUrl).trim() });
   $('#who-lobby').textContent = $('#who-call').textContent = me.name + (me.callsign ? ` (${me.callsign})` : '');
   renderRecent(m.rooms || []);
+  renderMissed([]); // the server sends the real list right after if there is one
   $('#login-error').textContent = '';
   $('#form-login').reset(); $('#form-register').reset(); $('#form-reset').reset();
   me.hasRecovery = !!m.hasRecovery;
@@ -1039,6 +1041,21 @@ function renderPeople() {
     }
   }
 }
+function renderMissed(list) {
+  $('#missed-box').classList.toggle('hidden', !list.length);
+  const box = $('#missed-list'); box.innerHTML = '';
+  for (const c of list) {
+    const row = document.createElement('div'); row.className = 'person';
+    const nm = document.createElement('span');
+    nm.textContent = `${c.from.name}${c.from.callsign ? ` (${c.from.callsign})` : ''} - ${fmtTime(c.ts)}`;
+    const call = document.createElement('button'); call.className = 'primary'; call.type = 'button'; call.textContent = 'Call back';
+    call.onclick = () => { wsSend({ t: 'missed-dismiss', id: c.id }); placeCall(c.from.id); };
+    const x = document.createElement('button'); x.className = 'ghost'; x.type = 'button'; x.textContent = '✕'; x.title = 'Dismiss';
+    x.onclick = () => wsSend({ t: 'missed-dismiss', id: c.id });
+    row.append(nm, call, x); box.appendChild(row);
+  }
+}
+$('#btn-missed-clear').onclick = () => wsSend({ t: 'missed-dismiss', id: 'all' });
 function placeCall(to) {
   $('#call-error').textContent = '';
   showModal('people', false);

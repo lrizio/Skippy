@@ -100,6 +100,10 @@ function client() {
   await u4.until('incoming-call');
   assert((await u3.until('call-failed')).msg.includes('did not answer'), 'unanswered call times out');
   assert((await u4.until('call-cancelled')) !== null, 'callee ring cancelled on timeout');
+  const ms = await u4.until('missed');
+  assert(ms.calls.length === 1 && ms.calls[0].from.name === 'User3', 'unanswered call is recorded as a missed call for the callee');
+  u4.send({ t: 'missed-dismiss', id: ms.calls[0].id });
+  assert((await u4.until('missed')).calls.length === 0, 'missed call can be dismissed');
   const hist2 = await (async () => { a.send({ t: 'history', room: s1.room }); return a.until('history'); })();
   assert(Array.isArray(hist2.history), 'direct-room history query works');
 
