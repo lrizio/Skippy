@@ -75,6 +75,14 @@ db.exec(`CREATE TABLE IF NOT EXISTS missed_calls (
 db.exec('CREATE INDEX IF NOT EXISTS missed_calls_user ON missed_calls(user_id, id)');
 const MAX_MISSED = 50;
 
+// direct messages live in the private pair room (@a-b) and so double as a call's chat; this records how far each person has read
+db.exec(`CREATE TABLE IF NOT EXISTS dm_read (
+  user_id INTEGER NOT NULL,
+  room TEXT NOT NULL,
+  last_read INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY (user_id, room)
+)`);
+
 const q = {
   insMissed: db.prepare('INSERT INTO missed_calls (user_id,from_id,from_name,from_callsign,ts) VALUES (?,?,?,?,?)'),
   trimMissed: db.prepare('DELETE FROM missed_calls WHERE user_id = ? AND id NOT IN (SELECT id FROM missed_calls WHERE user_id = ? ORDER BY id DESC LIMIT ?)'),
@@ -101,6 +109,10 @@ const q = {
   insMsg: db.prepare('INSERT INTO messages (room,user_id,name,ts,kind,text,file_name,file_size) VALUES (?,?,?,?,?,?,?,?)'),
   history: db.prepare('SELECT * FROM (SELECT * FROM messages WHERE room = ? AND id >= ? ORDER BY id DESC LIMIT ?) ORDER BY id ASC'),
   maxMsg: db.prepare('SELECT COALESCE(MAX(id), 0) AS m FROM messages WHERE room = ?'),
+  setRead: db.prepare('INSERT INTO dm_read (user_id,room,last_read) VALUES (?,?,?) ON CONFLICT(user_id,room) DO UPDATE SET last_read = MAX(last_read, excluded.last_read)'),
+  dmRooms: db.prepare('SELECT DISTINCT room FROM messages WHERE room GLOB ? OR room GLOB ?'),
+  lastMsg: db.prepare('SELECT * FROM messages WHERE room = ? ORDER BY id DESC LIMIT 1'),
+  unread: db.prepare('SELECT COUNT(*) AS n FROM messages WHERE room = ? AND user_id != ? AND id > COALESCE((SELECT last_read FROM dm_read WHERE user_id = ? AND room = ?), 0)'),
   recentRooms: db.prepare(
     "SELECT room, MAX(id) AS last FROM messages WHERE room NOT LIKE '@%' AND room IN (SELECT DISTINCT room FROM messages WHERE user_id = ?) GROUP BY room ORDER BY last DESC LIMIT 12"
   ),
@@ -193,6 +205,30 @@ function historyFor(room, userId) {
   return q.history.all(room, original ? 0 : from, HISTORY_LIMIT).map(msgOut);
 }
 
+// ---- direct messages: work without a call, are stored, and wait for the recipient if they are offline ----
+const pairPeer = (room, userId) => { // the other person in a two-person room, or null
+  const m = /^@(\d+)-(\d+)$/.exec(room);
+  if (!m) return null;
+  const a = Number(m[1]), b = Number(m[2]);
+  return a === userId ? b : b === userId ? a : null;
+};
+function markRead(userId, room) { q.setRead.run(userId, room, q.maxMsg.get(room).m); }
+function inboxFor(userId) { // one entry per person you have exchanged messages with, newest first
+  const list = [];
+  for (const { room } of q.dmRooms.all(`@${userId}-*`, `@*-${userId}`)) {
+    const peerId = pairPeer(room, userId), peer = peerId && q.userById.get(peerId);
+    if (!peer) continue;
+    const last = q.lastMsg.get(room);
+    list.push({ peer: publicUser(peer), room, unread: Number(q.unread.get(room, userId, userId, room).n),
+               last: msgOut(last) });
+  }
+  return list.sort((x, y) => y.last.id - x.last.id);
+}
+function sendInbox(userId) {
+  const inbox = inboxFor(userId);
+  for (const t of online.get(userId) || []) send(t, { t: 'inbox', inbox });
+}
+
 function broadcastPresence() {
   const users = [...online.values()].map(set => publicUser([...set][0].user));
   // named rooms that have someone in them (private direct-call rooms start with @ and are never listed)
@@ -259,6 +295,8 @@ function sendAuthed(c, user, token, extra) {
             rooms: q.recentRooms.all(user.id).map(r => r.room), ...extra });
   goOnline(c);
   if (q.missed.all(user.id).length) sendMissed(c); // the app starts with an empty list, so nothing to send otherwise
+  const inbox = inboxFor(user.id);
+  if (inbox.length) send(c, { t: 'inbox', inbox }); // as with missed calls, the app starts empty, so nothing to send otherwise
 }
 
 function findUserForLogin(id) {
@@ -492,6 +530,53 @@ function handle(c, m) {
         name: c.user.name, ts, kind: isFile ? 'file' : 'text', text, fileName, fileSize,
         fileId: isFile ? String(m.fileId || '') : undefined } };
       for (const p of rooms.get(c.room).values()) send(p, out);
+      if (/^@\d+-\d+$/.test(c.room)) { // chat inside a direct call is already seen by everyone present
+        for (const p of rooms.get(c.room).values()) markRead(p.user.id, c.room);
+        const peer = pairPeer(c.room, c.user.id);
+        if (peer && !rooms.get(c.room).has(peer)) { // the other person is not in the call: it is a message for their inbox
+          for (const t of online.get(peer) || []) send(t, { t: 'dm', msg: out.msg });
+          sendInbox(peer);
+        }
+      }
+      return;
+    }
+    case 'dm': { // send a message to one person, in a call or not
+      const ident = String(m.to ?? '').trim();
+      const target = typeof m.to === 'number' ? q.userById.get(m.to)
+        : (q.userByName.get(ident) || q.userByCall.get(ident.toUpperCase()));
+      if (!target) return send(c, { t: 'error', msg: 'No user with that name or callsign.' });
+      if (target.id === c.user.id) return send(c, { t: 'error', msg: "You can't message yourself." });
+      const text = String(m.text || '').slice(0, MAX_CHAT_LEN);
+      if (!text.trim()) return;
+      const room = dmRoom(c.user.id, target.id), ts = Date.now();
+      const info = q.insMsg.run(room, c.user.id, c.user.name, ts, 'text', text, null, null);
+      const msg = { id: Number(info.lastInsertRowid), room, userId: c.user.id, name: c.user.name, ts, kind: 'text', text, fileName: null, fileSize: null };
+      const members = rooms.get(room);
+      const present = new Set(); // people currently in that call see it in the call chat as usual
+      if (members) for (const p of members.values()) { send(p, { t: 'chat', msg }); present.add(p.user.id); }
+      for (const id of [c.user.id, target.id]) {
+        if (present.has(id)) markRead(id, room);
+        else for (const t of online.get(id) || []) send(t, { t: 'dm', msg, peer: publicUser(id === c.user.id ? target : c.user) });
+      }
+      markRead(c.user.id, room);
+      sendInbox(c.user.id); sendInbox(target.id);
+      return;
+    }
+    case 'dm-open': { // open a conversation: send its history and mark it read
+      const ident = String(m.with ?? '').trim();
+      const target = typeof m.with === 'number' ? q.userById.get(m.with)
+        : (q.userByName.get(ident) || q.userByCall.get(ident.toUpperCase()));
+      if (!target) return send(c, { t: 'error', msg: 'No user with that name or callsign.' });
+      if (target.id === c.user.id) return send(c, { t: 'error', msg: "You can't message yourself." });
+      const room = dmRoom(c.user.id, target.id);
+      send(c, { t: 'dm-thread', peer: publicUser(target), history: historyFor(room, c.user.id) });
+      markRead(c.user.id, room);
+      sendInbox(c.user.id);
+      return;
+    }
+    case 'dm-read': {
+      const peer = Number(m.with);
+      if (peer && peer !== c.user.id) { markRead(c.user.id, dmRoom(c.user.id, peer)); sendInbox(c.user.id); }
       return;
     }
     case 'signal': {

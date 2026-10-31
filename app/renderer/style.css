@@ -157,3 +157,13 @@ body.fs .tile.spot { border-radius: 0; }
 .dev-wrap { position: relative; }
 .dev-pop { position: absolute; top: calc(100% + 8px); left: 0; z-index: 30; width: 240px; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 10px; display: flex; flex-direction: column; gap: 8px; box-shadow: 0 8px 24px rgba(0,0,0,.5); }
 .dev-pop .ctl-select { width: 100%; }
+
+.msg-thread-log { flex: none; height: 260px; background: var(--panel2); border: 1px solid var(--line); border-radius: 6px; margin-bottom: 8px; }
+.msg-thread-log .msg { margin-bottom: 8px; }
+#msg-thread .chat-form { padding: 0; border-top: 0; }
+#msg-thread .row { margin-top: 12px; justify-content: space-between; }
+.badge { display: inline-block; min-width: 18px; padding: 1px 6px; margin-left: 6px; border-radius: 9px; background: var(--danger); color: #fff; font-size: 11px; text-align: center; }
+.person .who-msg { flex: 1; min-width: 0; margin-right: 8px; cursor: pointer; }
+.person .who-msg .last { display: block; font-size: 12px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.person .who-msg.unread b { color: var(--accent); }
+.person .btns { display: flex; gap: 6px; }

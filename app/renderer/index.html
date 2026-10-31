@@ -96,6 +96,7 @@
     <span class="logo small">Skippy</span>
     <span class="grow"></span>
     <button class="ghost" id="btn-call-lobby" type="button">📞 Call someone</button>
+    <button class="ghost btn-msg" id="btn-msg-lobby" type="button" title="Send a message to one person, even when they are offline">💬 Messages</button>
     <button class="ghost" id="btn-security" type="button">🔒 Security</button>
     <span class="who" id="who-lobby"></span>
     <button class="ghost" id="btn-logout-lobby" type="button">Log out</button>
@@ -159,6 +160,7 @@
       </div>
     </div>
     <button class="ghost" id="btn-call-call" type="button" title="Ring someone and bring them into this call">➕ Add someone</button>
+    <button class="ghost btn-msg" id="btn-msg-call" type="button" title="Send a message to one person">💬 Messages</button>
     <span class="who" id="who-call"></span>
     <button id="btn-leave" class="danger" type="button">Leave</button>
   </header>
@@ -188,6 +190,32 @@
     </form>
     <div id="call-error" class="error"></div>
     <button class="ghost" id="btn-people-close" type="button">Close</button>
+  </div>
+</div>
+<div id="modal-messages" class="modal hidden">
+  <div class="modal-card">
+    <div id="msg-inbox">
+      <h2>Messages</h2>
+      <div id="msg-list" class="people"></div>
+      <form id="form-msg-new" class="call-name">
+        <input id="msg-new-name" type="text" placeholder="New message to name or callsign" autocomplete="off">
+        <button class="primary" type="submit">Write</button>
+      </form>
+      <div id="msg-error" class="error"></div>
+      <button class="ghost" id="btn-msg-close" type="button">Close</button>
+    </div>
+    <div id="msg-thread" class="hidden">
+      <h2 id="msg-thread-title"></h2>
+      <div id="msg-thread-log" class="chat-log msg-thread-log"></div>
+      <form id="form-msg-send" class="chat-form">
+        <input id="msg-input" type="text" placeholder="Type a message" maxlength="4000" autocomplete="off">
+        <button class="primary" type="submit">Send</button>
+      </form>
+      <div class="row">
+        <button class="ghost" id="btn-msg-back" type="button">‹ All messages</button>
+        <button class="ghost" id="btn-msg-call-peer" type="button">📞 Call</button>
+      </div>
+    </div>
   </div>
 </div>
 <div id="modal-security" class="modal hidden">

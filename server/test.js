@@ -227,5 +227,34 @@ function client() {
   assert((await hh.until('error')).msg.includes('wrong'), 'new recovery key needs the password');
   hh.send({ t: 'recovery-new', password: 'hostset99' });
   const nk = await hh.until('recovery-new'); assert(/^([A-Z2-9]{4}-){3}[A-Z2-9]{4}$/.test(nk.recoveryKey), 'new recovery key issued');
+  // direct messages without a call: stored, pushed live, and waiting in the inbox for an offline recipient
+  const d1 = await client(); d1.send({ t: 'register', name: 'Dora', email: 'dora@x.com', password: 'password1' }); await d1.until('authed');
+  const d2 = await client(); d2.send({ t: 'register', name: 'Dave', email: 'dave@x.com', callsign: 'k9dv', password: 'password1' });
+  const d2auth = await d2.until('authed');
+  d2.send({ t: 'logout', token: d2auth.token }); await d2.until('logged-out'); // Dave is now offline
+  d1.send({ t: 'dm', to: 'K9DV', text: 'are you there?' });
+  const echo = await d1.until('dm'); assert(echo.msg.text === 'are you there?' && echo.peer.name === 'Dave', 'sender gets their own dm back');
+  d1.send({ t: 'dm', to: 'nobody', text: 'hi' });
+  assert((await d1.until('error')).msg.includes('No user'), 'dm to unknown user refused');
+  d1.send({ t: 'dm', to: 'Dora', text: 'me' });
+  assert((await d1.until('error')).msg.includes('yourself'), 'dm to yourself refused');
+  const d3 = await client(); d3.send({ t: 'login', id: 'k9dv', password: 'password1' });
+  const d3auth = await d3.until('authed');
+  const inb = await d3.until('inbox');
+  assert(inb.inbox.length === 1 && inb.inbox[0].peer.name === 'Dora' && inb.inbox[0].unread === 1, 'offline recipient finds an unread message at login');
+  d1.send({ t: 'dm', to: 'Dave', text: 'second one' });
+  const live = await d3.until('dm'); assert(live.msg.text === 'second one' && live.msg.userId !== d3auth.user.id, 'online recipient is pushed the message');
+  const inb2 = await d3.until('inbox'); assert(inb2.inbox[0].unread === 2, 'unread count grows');
+  d3.send({ t: 'dm-open', with: 'Dora' });
+  const th = await d3.until('dm-thread'); assert(th.history.length === 2 && th.history[0].text === 'are you there?', 'dm-open returns the conversation');
+  assert((await d3.until('inbox')).inbox[0].unread === 0, 'opening a conversation marks it read');
+  d3.send({ t: 'dm', to: 'Dora', text: 'yes, hello' });
+  let reply; do { reply = await d1.until('dm'); } while (reply.msg.text !== 'yes, hello' && reply.msg.userId === echo.msg.userId); // skip echoes of her own earlier messages
+  assert(reply.msg.text === 'yes, hello', 'reply reaches the first user');
+  const other = await client(); other.send({ t: 'register', name: 'Eve', email: 'eve@x.com', password: 'password1' }); await other.until('authed');
+  other.send({ t: 'history', room: '@1-2' });
+  other.send({ t: 'dm-open', with: 'Dora' });
+  const eveThread = await other.until('dm-thread'); assert(eveThread.history.length === 0, 'a third person sees none of their messages');
+
   cleanup(0);
 })().catch(e => { console.error(e); cleanup(1); });

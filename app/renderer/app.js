@@ -82,7 +82,7 @@ function onServer(m) {
       return showLogin();
     case 'logged-out': return;
     case 'error':
-      if (!loggedIn) $('#login-error').textContent = m.msg; else if (!$('#modal-security').classList.contains('hidden')) $('#sec-error').textContent = m.msg; else toast(m.msg);
+      if (!loggedIn) $('#login-error').textContent = m.msg; else if (!$('#modal-messages').classList.contains('hidden')) $('#msg-error').textContent = m.msg; else if (!$('#modal-security').classList.contains('hidden')) $('#sec-error').textContent = m.msg; else toast(m.msg);
       if (!room) $('#join-error').textContent = m.msg;
       return;
     case 'room-full':
@@ -97,7 +97,13 @@ function onServer(m) {
       if (u) sysMsg(`${u.name} left`);
       closePeer(m.id); updateCount(); return;
     }
-    case 'chat': if (m.msg.room === room) addMessage(m.msg, true); return;
+    case 'chat':
+      if (m.msg.room === room) addMessage(m.msg, true);
+      if (dmThread && m.msg.room === dmRoomName(dmThread.id)) addThreadMsg(m.msg); // same conversation, open in the Messages window
+      return;
+    case 'inbox': inbox = m.inbox || []; renderInbox(); return;
+    case 'dm': return onDm(m);
+    case 'dm-thread': return onDmThread(m);
     case 'signal': return onSignal(m.from, m.data);
     case 'password-reset': toast('Password changed.'); showRecoveryKey(m.recoveryKey, 'Your password is changed and every other device is signed out. This is your new recovery key - the old one no longer works.'); return;
     case 'recovery-new': $('#form-recovery').reset(); me.hasRecovery = true; showRecoveryKey(m.recoveryKey); return;
@@ -133,6 +139,7 @@ async function onAuthed(m) {
   $('#who-lobby').textContent = $('#who-call').textContent = me.name + (me.callsign ? ` (${me.callsign})` : '');
   renderRecent(m.rooms || []);
   renderMissed([]); // the server sends the real list right after if there is one
+  inbox = []; dmThread = null; renderInbox(); // likewise the inbox
   $('#login-error').textContent = '';
   $('#form-login').reset(); $('#form-register').reset(); $('#form-reset').reset();
   me.hasRecovery = !!m.hasRecovery;
@@ -1003,7 +1010,8 @@ function addBar(parent, pct) {
 function showModal(which, on) { $('#modal-' + which).classList.toggle('hidden', !on); }
 function clearCallUi() {
   incomingCall = outgoingCall = null; stopRing();
-  for (const m of ['incoming', 'calling', 'people', 'security']) showModal(m, false);
+  for (const m of ['incoming', 'calling', 'people', 'security', 'messages']) showModal(m, false);
+  dmThread = null;
 }
 
 let ringCtx = null, ringTimer = null;
@@ -1037,7 +1045,10 @@ function renderPeople() {
       const nm = document.createElement('span'); nm.textContent = u.name + (u.callsign ? ` (${u.callsign})` : '');
       const b = document.createElement('button'); b.className = 'primary'; b.type = 'button'; b.textContent = 'Call';
       b.onclick = () => placeCall(u.id);
-      row.append(nm, b); box.appendChild(row);
+      const mb = document.createElement('button'); mb.className = 'ghost'; mb.type = 'button'; mb.textContent = 'Message'; mb.title = 'Send a message without calling';
+      mb.onclick = () => { showModal('people', false); openThread(u); };
+      const btns = document.createElement('span'); btns.className = 'btns'; btns.append(mb, b);
+      row.append(nm, btns); box.appendChild(row);
     }
   }
 }
@@ -1102,6 +1113,127 @@ function startDirect(m) {
   wantedRoom = m.room;
   wsSend({ t: 'join', room: m.room });
 }
+
+// ---------- direct messages (no call needed; stored on the server until the person reads them) ----------
+let inbox = [];               // conversations: { peer, room, unread, last }
+let dmThread = null;          // the person whose conversation is open in the Messages window
+const threadIds = new Set();  // message ids already shown in the open conversation
+const dmRoomName = id => `@${Math.min(me.id, id)}-${Math.max(me.id, id)}`;
+const messagesOpen = () => !$('#modal-messages').classList.contains('hidden');
+
+function renderInbox() {
+  const n = inbox.reduce((sum, c) => sum + c.unread, 0);
+  for (const b of document.querySelectorAll('.btn-msg')) {
+    b.textContent = '💬 Messages';
+    if (n) { const s = document.createElement('span'); s.className = 'badge'; s.textContent = n; b.appendChild(s); }
+  }
+  const box = $('#msg-list'); box.innerHTML = '';
+  if (!inbox.length) { box.textContent = 'No messages yet.'; box.classList.add('muted'); return; }
+  box.classList.remove('muted');
+  for (const c of inbox) {
+    const row = document.createElement('div'); row.className = 'person';
+    const who = document.createElement('span'); who.className = 'who-msg' + (c.unread ? ' unread' : '');
+    const nm = document.createElement('b'); nm.textContent = c.peer.name + (c.peer.callsign ? ` (${c.peer.callsign})` : '');
+    const last = document.createElement('span'); last.className = 'last';
+    last.textContent = (c.last.userId === me.id ? 'You: ' : '') + (c.last.kind === 'file' ? `📎 ${c.last.fileName}` : c.last.text) + ' · ' + fmtTime(c.last.ts);
+    who.append(nm, last);
+    who.onclick = () => openThread(c.peer);
+    row.appendChild(who);
+    if (c.unread) { const s = document.createElement('span'); s.className = 'badge'; s.textContent = c.unread; row.appendChild(s); }
+    box.appendChild(row);
+  }
+}
+function showInboxPane() {
+  dmThread = null;
+  $('#msg-thread').classList.add('hidden'); $('#msg-inbox').classList.remove('hidden');
+  $('#msg-error').textContent = '';
+  renderInbox();
+}
+function openMessages() { showInboxPane(); showModal('messages', true); }
+function openThread(peer) { // peer: a user object, or just a name / callsign typed by the user
+  const byName = typeof peer === 'string';
+  dmThread = byName ? null : peer;
+  threadIds.clear(); $('#msg-thread-log').innerHTML = '';
+  $('#msg-error').textContent = '';
+  showModal('messages', true);
+  if (byName) return wsSend({ t: 'dm-open', with: peer });
+  $('#msg-thread-title').textContent = peer.name + (peer.callsign ? ` (${peer.callsign})` : '');
+  $('#msg-inbox').classList.add('hidden'); $('#msg-thread').classList.remove('hidden');
+  wsSend({ t: 'dm-open', with: peer.id });
+  $('#msg-input').focus();
+}
+function onDmThread(m) { // the server's answer to dm-open: the conversation so far
+  if (!messagesOpen()) return;
+  if (!dmThread || dmThread.id !== m.peer.id) { // opened by typing a name
+    if (dmThread) return;
+    dmThread = m.peer;
+    $('#msg-thread-title').textContent = m.peer.name + (m.peer.callsign ? ` (${m.peer.callsign})` : '');
+    $('#msg-inbox').classList.add('hidden'); $('#msg-thread').classList.remove('hidden');
+    $('#msg-input').focus();
+  }
+  threadIds.clear(); $('#msg-thread-log').innerHTML = '';
+  for (const x of m.history) addThreadMsg(x);
+  if (!m.history.length) { const d = document.createElement('div'); d.className = 'sys'; d.textContent = 'No messages yet - say hello.'; $('#msg-thread-log').appendChild(d); }
+}
+function addThreadMsg(m) {
+  if (threadIds.has(m.id)) return;
+  threadIds.add(m.id);
+  const logEl = $('#msg-thread-log');
+  logEl.querySelector('.sys')?.remove();
+  const d = document.createElement('div');
+  d.className = 'msg' + (m.userId === me.id ? ' mine' : '') + (m.kind === 'file' ? ' file' : '');
+  const meta = document.createElement('div'); meta.className = 'meta';
+  const b = document.createElement('b'); b.textContent = m.name;
+  meta.append(b, ' · ' + fmtTime(m.ts));
+  const body = document.createElement('div'); body.className = 'body';
+  if (m.kind === 'file') body.textContent = `📎 ${m.fileName} (sent during a call)`; else linkify(body, m.text);
+  d.append(meta, body); logEl.appendChild(d);
+  logEl.scrollTop = logEl.scrollHeight;
+}
+function onDm(m) {
+  const msg = m.msg, mine = msg.userId === me.id;
+  const other = mine ? m.peer?.id : msg.userId; // who the conversation is with
+  if (messagesOpen() && dmThread && dmThread.id === other) { // being read right now
+    addThreadMsg(msg);
+    if (!mine) wsSend({ t: 'dm-read', with: other });
+    return;
+  }
+  if (mine) return;
+  ping();
+  toast(`Message from ${msg.name}`);
+  try {
+    const n = new Notification(`Message from ${msg.name}`, { body: msg.text || 'sent a file' });
+    n.onclick = () => { api.showWindow(); openThread({ id: msg.userId, name: msg.name, callsign: '' }); };
+  } catch { /* ignore */ }
+}
+function ping() { // short two-note chime, quieter and briefer than a call ring
+  try {
+    const ctx = new AudioContext();
+    if (ctx.setSinkId && S.devices.spk) ctx.setSinkId(S.devices.spk).catch(() => {});
+    [660, 880].forEach((f, i) => {
+      const o = ctx.createOscillator(), g = ctx.createGain();
+      o.frequency.value = f; g.gain.value = 0.08;
+      o.connect(g); g.connect(ctx.destination); o.start(ctx.currentTime + i * 0.15); o.stop(ctx.currentTime + i * 0.15 + 0.12);
+    });
+    setTimeout(() => ctx.close().catch(() => {}), 800);
+  } catch { /* no audio output */ }
+}
+$('#btn-msg-lobby').onclick = $('#btn-msg-call').onclick = openMessages;
+$('#btn-msg-close').onclick = () => { showModal('messages', false); dmThread = null; };
+$('#btn-msg-back').onclick = showInboxPane;
+$('#btn-msg-call-peer').onclick = () => { if (dmThread) { const id = dmThread.id; showModal('messages', false); dmThread = null; placeCall(id); } };
+$('#form-msg-new').onsubmit = e => {
+  e.preventDefault();
+  const v = $('#msg-new-name').value.trim();
+  if (v) { $('#msg-new-name').value = ''; openThread(v); }
+};
+$('#form-msg-send').onsubmit = e => {
+  e.preventDefault();
+  const text = $('#msg-input').value;
+  if (!text.trim() || !dmThread) return;
+  wsSend({ t: 'dm', to: dmThread.id, text });
+  $('#msg-input').value = '';
+};
 
 // ---------- update check ----------
 function newer(a, b) { // is version a newer than b?
