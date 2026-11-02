@@ -3,6 +3,7 @@ const { app, BrowserWindow, ipcMain, session, safeStorage, shell, Tray, Menu, na
 const fs = require('fs');
 const QRCode = require('qrcode');
 const path = require('path');
+const recorder = require('./recorder');
 
 const DEFAULTS = {
   serverUrl: 'ws://localhost:8470',
@@ -223,6 +224,7 @@ if (!app.requestSingleInstanceLock()) {
   app.whenReady().then(() => {
     loadSettings();
     clearIncoming();
+    recorder.sweepTmp();
     session.defaultSession.setDisplayMediaRequestHandler((_req, cb) => {
       const id = pickedSource; pickedSource = null;
       if (!id) return cb({});

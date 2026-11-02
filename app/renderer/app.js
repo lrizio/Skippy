@@ -376,6 +376,7 @@ async function startLocal() {
     if (!screenStream) await p.senders.video?.replaceTrack(stream.getVideoTracks()[0] || null);
   }
   updateSelfTile();
+  recSwapLocal();
 }
 
 function applyTrackStates() {
@@ -395,7 +396,7 @@ function setMicIcon(tile, on) {
   m.title = on ? 'Microphone on' : 'Microphone muted';
 }
 function sendState(p) {
-  if (p.dc?.readyState === 'open') p.dc.send(JSON.stringify({ k: 'state', mic: micOn, cam: camOn || !!screenStream }));
+  if (p.dc?.readyState === 'open') p.dc.send(JSON.stringify({ k: 'state', mic: micOn, cam: camOn || !!screenStream, rec: typeof recOn === 'function' && recOn() }));
 }
 $('#btn-mic').onclick = () => { micOn = !micOn; applyTrackStates(); };
 $('#btn-cam').onclick = () => { camOn = !camOn; applyTrackStates(); };
@@ -758,6 +759,7 @@ function makePeer(user, initiator = false) {
   pc.onicecandidate = ev => { if (ev.candidate) wsSend({ t: 'signal', to: user.id, data: { candidate: ev.candidate } }); };
   pc.ontrack = ev => {
     p.stream.addTrack(ev.track);
+    if (ev.track.kind === 'audio') recPeerAudio(p);
     ev.track.onmute = () => updatePeerVideo(p);
     ev.track.onunmute = () => updatePeerVideo(p);
     updatePeerVideo(p);
@@ -824,14 +826,17 @@ function closePeer(id) {
     f.failed = true; api.fileDiscard(fid); refreshFileEls(fid);
   }
   if (p.tile.classList.contains('spot')) $('#grid').classList.remove('spot');
+  recDropPeer(id);
   p.dc?.close(); p.pc.close(); p.tile.remove();
   peers.delete(id);
+  updateRecBadge();
   updateBitrates(); layoutGrid();
 }
 function closeAllPeers() { for (const id of [...peers.keys()]) closePeer(id); }
 
 function hardLeave() {
   if (document.body.classList.contains('fs')) exitFull();
+  recStop(true);
   stopShare(); // before closing the connections, so the camera is restored cleanly
   closeAllPeers();
   $('#grid').classList.remove('spot');
@@ -952,7 +957,11 @@ async function pushFile(p, fileId, file) {
 function onDataMessage(p, data) {
   if (typeof data === 'string') {
     let m; try { m = JSON.parse(data); } catch { return; }
-    if (m.k === 'state') { p.camOff = !m.cam; setMicIcon(p.tile, !!m.mic); updatePeerVideo(p); return; }
+    if (m.k === 'state') {
+      p.camOff = !m.cam; setMicIcon(p.tile, !!m.mic); updatePeerVideo(p);
+      if (!!m.rec !== !!p.rec) { p.rec = !!m.rec; toast(`${p.user.name} ${p.rec ? 'started' : 'stopped'} recording this call.`); updateRecBadge(); }
+      return;
+    }
     if (m.k === 'start') {
       if (typeof m.size !== 'number' || m.size > MAX_FILE) { p.incoming = { skip: true }; toast(`${p.user.name} sent a file that is too large; skipped.`); return; }
       if (typeof m.id !== 'string' || !/^[0-9a-f-]{36}$/i.test(m.id)) return;

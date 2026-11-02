@@ -290,6 +290,22 @@ def build():
                "call do not see the chat from before they joined."))
 
     # -------------------------------------------------------------------------
+    f.append(P("Recording a call and making a text archive", style_h2))
+    f.append(P("Press <b>Record</b> at the top of the call screen to record the audio of the call on <b>your own computer</b>. "
+               "Everyone in the call sees a pulsing <b>REC</b> indicator and a message saying who started recording, and "
+               "people who join later see it too, so nobody is recorded without knowing. Press <b>Stop recording</b> (or leave the call) to finish."))
+    f.append(bullets([
+        "Each person is saved as a <b>separate track</b> (<i>Alice.webm</i>, <i>Bob.webm</i> ...) in <i>Documents/Skippy Recordings/&lt;room&gt; &lt;date time&gt;</i>. "
+        "Keeping the tracks apart is how the transcript knows who is speaking.",
+        "<b>Recordings</b> in the lobby (and the window that opens when you stop) lists every recording. <b>Make text</b> turns it into "
+        "<i>Transcript.txt</i>, with a line for each remark such as <i>[0:03:12] Alice: Good evening everyone</i>, in time order. <b>Read</b> opens it and <b>Folder</b> opens the folder.",
+        "Transcription runs <b>on your computer</b> (whisper.cpp), so no audio is sent anywhere. The first time, Skippy asks to download "
+        "the speech engine and language model (about 190 MB, Windows only); after that it works offline. It takes roughly as long as the call, depending on your computer.",
+        "Accuracy is that of a small speech model: good for clear speech, weaker on noisy or very quiet audio. Names and callsigns may be misspelled.",
+    ]))
+    f.append(shot("recordings.png", width=5.2 * inch, caption="The Recordings list after a call (here with a test recording)."))
+
+    # -------------------------------------------------------------------------
     f.append(P("Running in the background", style_h2))
     f.append(bullets([
         "Closing the Skippy window does <b>not</b> quit it. It hides in the <b>system tray</b> (the notification "

@@ -97,6 +97,7 @@
     <span class="grow"></span>
     <button class="ghost" id="btn-call-lobby" type="button">📞 Call someone</button>
     <button class="ghost btn-msg" id="btn-msg-lobby" type="button" title="Send a message to one person, even when they are offline">💬 Messages</button>
+    <button class="ghost" id="btn-recordings" type="button" title="Recordings of calls and their text transcripts">🎙 Recordings</button>
     <button class="ghost" id="btn-security" type="button">🔒 Security</button>
     <span class="who" id="who-lobby"></span>
     <button class="ghost" id="btn-logout-lobby" type="button">Log out</button>
@@ -150,6 +151,8 @@
     <button id="btn-mic" class="ctl" type="button">Mute</button>
     <button id="btn-cam" class="ctl" type="button">Stop video</button>
     <button id="btn-share" class="ctl" type="button" title="Show your screen or a window to everyone">Share screen</button>
+    <span id="rec-badge" class="rec-badge hidden">&#9679; REC</span>
+    <button id="btn-rec" class="ctl" type="button" title="Record the audio of this call on this computer, one track per speaker, for a text archive">Record</button>
     <button id="btn-chat" class="ctl" type="button" title="Show or hide the chat">Hide chat</button>
     <button id="btn-reset-layout" class="ctl" type="button" title="Tile the video windows neatly again">Reset layout</button>
     <div class="dev-wrap">
@@ -191,6 +194,15 @@
     </form>
     <div id="call-error" class="error"></div>
     <button class="ghost" id="btn-people-close" type="button">Close</button>
+  </div>
+</div>
+<div id="modal-recordings" class="modal hidden">
+  <div class="modal-card wide-card">
+    <h2>Recordings</h2>
+    <p class="muted">Saved on this computer. Make text turns each speaker's track into a transcript that names who said what.</p>
+    <div id="rec-list" class="people"></div>
+    <button class="ghost" id="btn-rec-folder" type="button">Open recordings folder</button>
+    <button class="ghost" id="btn-rec-close" type="button">Close</button>
   </div>
 </div>
 <div id="modal-messages" class="modal hidden">
@@ -303,5 +315,6 @@
 
 <div id="toast" class="toast hidden"></div>
 <script src="app.js"></script>
+<script src="rec.js"></script>
 </body>
 </html>

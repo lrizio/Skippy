@@ -162,6 +162,10 @@ body.fs .tile.spot { border-radius: 0; }
 .msg-thread-log .msg { margin-bottom: 8px; }
 #msg-thread .chat-form { padding: 0; border-top: 0; }
 #msg-thread .row { margin-top: 12px; justify-content: space-between; }
+.rec-badge { color: #fff; background: var(--danger); border-radius: 4px; padding: 3px 8px; font-size: 12px; font-weight: 600; animation: recpulse 1.4s infinite; }
+@keyframes recpulse { 50% { opacity: .55; } }
+.rec-row.fresh { background: rgba(63,185,80,.12); }
+.rec-row .btns { flex-wrap: wrap; justify-content: flex-end; }
 .badge { display: inline-block; min-width: 18px; padding: 1px 6px; margin-left: 6px; border-radius: 9px; background: var(--danger); color: #fff; font-size: 11px; text-align: center; }
 .person .who-msg { flex: 1; min-width: 0; margin-right: 8px; cursor: pointer; }
 .person .who-msg .last { display: block; font-size: 12px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
