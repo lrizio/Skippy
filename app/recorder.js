@@ -8,8 +8,8 @@ const fs = require('fs');
 const path = require('path');
 
 const MODEL_NAME = 'ggml-base.bin';
-const MODEL_URL = `https://huggingface.co/ggml-org/whisper.cpp/resolve/main/${MODEL_NAME}`;
-const RELEASES_API = 'https://api.github.com/repos/ggml-org/whisper.cpp/releases/latest';
+const MODEL_URL = `https://huggingface.co/ggerganov/whisper.cpp/resolve/main/${MODEL_NAME}`;
+const RELEASES_API = 'https://api.github.com/repos/ggml-org/whisper.cpp/releases?per_page=30';
 const WIN_ASSET = /^whisper-bin-x64\.zip$/i;
 
 const root = () => path.join(app.getPath('documents'), 'Skippy Recordings');
@@ -156,9 +156,12 @@ ipcMain.handle('rec:engine-install', async e => {
     fs.mkdirSync(engineDir(), { recursive: true });
     if (!engineExe()) {
       send('Finding the speech engine', 0);
-      const rel = await (await fetch(RELEASES_API, { headers: { 'User-Agent': 'Skippy', Accept: 'application/json' } })).json();
-      const asset = (rel.assets || []).find(a => WIN_ASSET.test(a.name));
-      if (!asset) throw new Error('Could not find the speech engine download.');
+      // The newest release often has no Windows build attached, so take the newest one that does.
+      const resp = await fetch(RELEASES_API, { headers: { 'User-Agent': 'Skippy', Accept: 'application/json' } });
+      if (!resp.ok) throw new Error(`Could not reach GitHub (${resp.status}). Check your internet connection.`);
+      let asset = null;
+      for (const rel of await resp.json()) { asset = (rel.assets || []).find(a => WIN_ASSET.test(a.name)); if (asset) break; }
+      if (!asset) throw new Error('Could not find a Windows speech engine download on GitHub.');
       const zip = path.join(engineDir(), 'engine.zip');
       await download(asset.browser_download_url, zip, p => send('Downloading the speech engine', p));
       send('Unpacking the speech engine', 1);
