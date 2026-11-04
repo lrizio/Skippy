@@ -189,6 +189,7 @@ ipcMain.handle('tailscale:status', async () => {
     const st = JSON.parse(stdout).BackendState;
     if (st === 'Running') return 'running';
     if (st === 'NeedsLogin' || st === 'NeedsMachineAuth') return 'needs-login';
+    if (st === 'NoState' || st === 'Starting') return 'starting';
     return 'stopped';
   } catch { return err ? 'unknown' : 'stopped'; }
 });

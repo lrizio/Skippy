@@ -1292,6 +1292,7 @@ function isTailscaleAddr(wsUrl) {
 }
 const TS_MSG = {
   'running': '',
+  'starting': 'Tailscale is still starting or has no connection yet, so you may not be able to reach the server.',
   'stopped': 'Tailscale is not running, so you may not be able to reach the server.',
   'needs-login': 'Tailscale needs you to sign in before it can connect.',
   'not-installed': 'Tailscale does not appear to be installed on this computer.',
@@ -1304,7 +1305,7 @@ async function checkTailscale() {
   const msg = TS_MSG[st];
   if (!msg) return banner.classList.add('hidden');
   $('#ts-text').textContent = msg;
-  $('#btn-ts-start').classList.toggle('hidden', st !== 'stopped');
+  $('#btn-ts-start').classList.toggle('hidden', st !== 'stopped' && st !== 'starting');
   banner.classList.remove('hidden');
 }
 function initTailscaleCheck() {
@@ -1314,7 +1315,7 @@ function initTailscaleCheck() {
   $('#btn-ts-start').onclick = async () => { $('#btn-ts-start').disabled = true; await api.tailscaleStart(); $('#btn-ts-start').disabled = false; checkTailscale(); };
   $('#server-url').addEventListener('change', checkTailscale);
   checkTailscale();
-  setInterval(() => { if (!$('#ts-banner').classList.contains('hidden')) checkTailscale(); }, 30000);
+  setInterval(checkTailscale, 15000); // always re-check: Tailscale can drop after startup
 }
 
 // ---------- startup ----------
