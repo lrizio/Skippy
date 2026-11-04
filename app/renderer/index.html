@@ -14,6 +14,12 @@
   <button class="ghost" id="btn-update-dismiss" type="button">Later</button>
 </div>
 
+<div id="ts-banner" class="update-banner ts-banner hidden">
+  <span id="ts-text"></span>
+  <button class="primary" id="btn-ts-start" type="button">Start Tailscale</button>
+  <button class="ghost" id="btn-ts-dismiss" type="button">Dismiss</button>
+</div>
+
 <!-- ===== Login / Register ===== -->
 <section id="screen-login" class="screen center">
   <div class="card">
@@ -85,6 +91,7 @@
       </label>
     </details>
     <label class="chk"><input type="checkbox" id="chk-updates"> Check for updates on startup</label>
+    <label class="chk"><input type="checkbox" id="chk-tailscale"> Warn me if Tailscale is not running</label>
     <label class="chk"><input type="checkbox" id="chk-autostart"> Start Skippy when I sign in to this computer</label>
     <div class="version muted" id="version-login"></div>
   </div>

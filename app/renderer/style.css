@@ -128,6 +128,8 @@ button.icon { background: var(--panel2); border: 1px solid var(--line); color: v
 .update-banner { position: fixed; top: 0; left: 0; right: 0; z-index: 30; display: flex; align-items: center; justify-content: center; gap: 12px;
   padding: 8px 16px; background: #14375a; border-bottom: 1px solid var(--accent); }
 .update-banner button { padding: 4px 14px; }
+.ts-banner { background: #5a3a14; border-bottom-color: #e0a030; }
+#update-banner:not(.hidden) ~ #ts-banner { top: 42px; }
 
 .ghost.wide, .danger.wide { width: 100%; margin-top: 8px; }
 .mono { font-family: Consolas, "Courier New", monospace; word-break: break-all; text-align: center; user-select: all; }
@@ -135,7 +137,7 @@ button.icon { background: var(--panel2); border: 1px solid var(--line); color: v
 #sec-qr { background: #fff; border-radius: 6px; }
 .tile-fs { position: absolute; right: 8px; bottom: 8px; background: rgba(0,0,0,.6); color: #fff; border: 0; border-radius: 4px; padding: 2px 8px; font-size: 16px; cursor: pointer; opacity: 0; transition: opacity .15s; }
 .tile:hover .tile-fs { opacity: 1; }
-body.fs .topbar, body.fs .controls, body.fs .side, body.fs .side-resizer, body.fs #update-banner { display: none !important; }
+body.fs .topbar, body.fs .controls, body.fs .side, body.fs .side-resizer, body.fs #update-banner, body.fs #ts-banner { display: none !important; }
 body.fs .grid { padding: 0; }
 body.fs .tile.spot { border-radius: 0; }
 .tile.sharing .avatar { font-size: 22px; }

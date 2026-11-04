@@ -169,6 +169,33 @@ ipcMain.handle('update:check', async (_e, wsUrl) => {
   } catch { /* offline */ }
   return null;
 });
+// Tailscale check: ask the local Tailscale CLI whether it is connected.
+// Returns 'running' | 'stopped' | 'needs-login' | 'not-installed' | 'unknown'.
+function tailscaleExe() {
+  if (process.platform !== 'win32') return 'tailscale';
+  const p = path.join(process.env.ProgramFiles || 'C:/Program Files', 'Tailscale', 'tailscale.exe');
+  return fs.existsSync(p) ? p : 'tailscale';
+}
+function runTailscale(args) {
+  return new Promise(resolve => {
+    require('child_process').execFile(tailscaleExe(), args, { timeout: 5000, windowsHide: true, maxBuffer: 4 * 1024 * 1024 },
+      (err, stdout) => resolve({ err, stdout: String(stdout || '') }));
+  });
+}
+ipcMain.handle('tailscale:status', async () => {
+  const { err, stdout } = await runTailscale(['status', '--json']);
+  if (err && err.code === 'ENOENT') return 'not-installed';
+  try {
+    const st = JSON.parse(stdout).BackendState;
+    if (st === 'Running') return 'running';
+    if (st === 'NeedsLogin' || st === 'NeedsMachineAuth') return 'needs-login';
+    return 'stopped';
+  } catch { return err ? 'unknown' : 'stopped'; }
+});
+ipcMain.handle('tailscale:start', async () => {
+  const { err } = await runTailscale(['up']);
+  return !err;
+});
 ipcMain.handle('qr:make', (_e, text) => QRCode.toDataURL(String(text), { margin: 1, width: 220 }));
 ipcMain.on('open:external', (_e, url) => { if (/^https?:\/\//i.test(String(url))) shell.openExternal(String(url)); });
 // Screen sharing: the renderer lists screens/windows, the user picks one, then getDisplayMedia is answered with that source.

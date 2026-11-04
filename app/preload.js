@@ -7,6 +7,8 @@ contextBridge.exposeInMainWorld('skippy', {
   setAutostart: on => ipcRenderer.invoke('autostart:set', on),
   makeQr: text => ipcRenderer.invoke('qr:make', text),
   checkUpdate: wsUrl => ipcRenderer.invoke('update:check', wsUrl),
+  tailscaleStatus: () => ipcRenderer.invoke('tailscale:status'),
+  tailscaleStart: () => ipcRenderer.invoke('tailscale:start'),
   openExternal: url => ipcRenderer.send('open:external', url),
   hideToTray: () => ipcRenderer.send('win:hide'),
   showWindow: () => ipcRenderer.send('win:show'),

@@ -1281,6 +1281,42 @@ async function checkForUpdates() {
   $('#update-banner').classList.remove('hidden');
 }
 
+// ---------- Tailscale check ----------
+// Only relevant when the saved server is a Tailscale address (100.64.0.0/10 or *.ts.net).
+function isTailscaleAddr(wsUrl) {
+  let h = '';
+  try { h = new URL(/^wss?:\/\//.test(wsUrl) ? wsUrl : 'ws://' + wsUrl).hostname.toLowerCase(); } catch { return false; }
+  if (h.endsWith('.ts.net')) return true;
+  const m = h.match(/^100\.(\d+)\.\d+\.\d+$/);
+  return !!m && +m[1] >= 64 && +m[1] <= 127;
+}
+const TS_MSG = {
+  'running': '',
+  'stopped': 'Tailscale is not running, so you may not be able to reach the server.',
+  'needs-login': 'Tailscale needs you to sign in before it can connect.',
+  'not-installed': 'Tailscale does not appear to be installed on this computer.',
+};
+async function checkTailscale() {
+  const banner = $('#ts-banner');
+  const url = ($('#server-url').value || S.serverUrl).trim();
+  if (S.checkTailscale === false || !isTailscaleAddr(url)) return banner.classList.add('hidden');
+  const st = await api.tailscaleStatus();
+  const msg = TS_MSG[st];
+  if (!msg) return banner.classList.add('hidden');
+  $('#ts-text').textContent = msg;
+  $('#btn-ts-start').classList.toggle('hidden', st !== 'stopped');
+  banner.classList.remove('hidden');
+}
+function initTailscaleCheck() {
+  $('#chk-tailscale').checked = S.checkTailscale !== false;
+  $('#chk-tailscale').onchange = e => { S.checkTailscale = e.target.checked; api.saveSettings({ checkTailscale: e.target.checked }); checkTailscale(); };
+  $('#btn-ts-dismiss').onclick = () => $('#ts-banner').classList.add('hidden');
+  $('#btn-ts-start').onclick = async () => { $('#btn-ts-start').disabled = true; await api.tailscaleStart(); $('#btn-ts-start').disabled = false; checkTailscale(); };
+  $('#server-url').addEventListener('change', checkTailscale);
+  checkTailscale();
+  setInterval(() => { if (!$('#ts-banner').classList.contains('hidden')) checkTailscale(); }, 30000);
+}
+
 // ---------- startup ----------
 (async function init() {
   S = await api.loadSettings();
@@ -1290,6 +1326,7 @@ async function checkForUpdates() {
   $('#chk-updates').checked = S.checkUpdates !== false;
   $('#chk-updates').onchange = e => { S.checkUpdates = e.target.checked; api.saveSettings({ checkUpdates: e.target.checked }); };
   checkForUpdates();
+  initTailscaleCheck();
   $('#chk-autostart').checked = !!S.autostart;
   $('#chk-autostart').onchange = e => api.setAutostart(e.target.checked);
   for (const id of ['#version-login', '#version-lobby']) $(id).textContent = 'Skippy v' + S.version;
