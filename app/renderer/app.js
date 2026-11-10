@@ -520,7 +520,16 @@ function setRect(t, x, y, w, h) { Object.assign(t.style, { left: x + 'px', top: 
 function autoLayout() {
   const { w, h } = gridBox(); if (!w || !h) return;
   const tiles = [...$('#grid').children], n = tiles.length; if (!n) return;
-  const cols = n <= 1 ? 1 : n <= 4 ? 2 : n <= 9 ? 3 : 4, rows = Math.ceil(n / cols);
+  let cols = n <= 1 ? 1 : n <= 4 ? 2 : n <= 9 ? 3 : 4;
+  if (window.SKIPPY_MOBILE) { // phone: pick the column count that gives the biggest 16:9 tiles for this screen shape
+    let best = 0;
+    for (let c = 1; c <= n; c++) {
+      const r = Math.ceil(n / c), cw0 = (w - GAP * (c + 1)) / c, ch0 = (h - GAP * (r + 1)) / r;
+      const a = Math.min(cw0, ch0 * 16 / 9);
+      if (a > best) { best = a; cols = c; }
+    }
+  }
+  const rows = Math.ceil(n / cols);
   const cw = (w - GAP * (cols + 1)) / cols, ch = (h - GAP * (rows + 1)) / rows;
   tiles.forEach((t, i) => {
     const c = i % cols, r = Math.floor(i / cols);
@@ -578,7 +587,7 @@ function makeDraggable(tile) {
     const h = document.createElement('div'); h.className = 'rz rz-' + d; h.dataset.dir = d; tile.appendChild(h);
   }
   tile.addEventListener('pointerdown', e => {
-    if (e.button !== 0 || e.target.closest('button') || tile.classList.contains('spot')) return;
+    if (window.SKIPPY_MOBILE || e.button !== 0 || e.target.closest('button') || tile.classList.contains('spot')) return; // phone: tiles stay tiled, double-tap fills
     const dir = e.target.dataset.dir || ''; // empty = move the whole window
     const start = rectOf(tile), sx = e.clientX, sy = e.clientY;
     let moved = false;

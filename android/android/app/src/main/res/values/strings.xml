@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Skippy</string>
+    <string name="title_activity_main">Skippy</string>
+    <string name="package_name">com.hamprojects.skippy</string>
+    <string name="custom_url_scheme">com.hamprojects.skippy</string>
+</resources>

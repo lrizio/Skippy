@@ -25,6 +25,12 @@ Full instructions with screenshots: **[Skippy User Guide (PDF)](docs/Skippy%20Us
 
 macOS/Linux: build the app yourself (`cd app && npm install && npm run dist` on that OS).
 
+### Android (client only)
+`Skippy-Android-<version>.apk` (in the `android-v*` releases) is a phone client for the same server: log in, rooms, direct calls, chat and file transfer.
+Install it by sideloading (allow "install unknown apps", or `adb install -r Skippy-Android-<version>.apk`), then enter the server address under **Server** - if the server is on Tailscale, the phone needs Tailscale running too.
+Not on the phone: recording/transcripts, screen sharing, and ringing while the app is closed.
+Build it yourself: needs JDK 21 and the Android SDK (platform 36); `cd android && npm install && npm run build`, then `gradlew assembleDebug` in `android/android`. The Android app shares `app/renderer` with the desktop app (`android/shim` holds the phone-specific parts).
+
 ## What it does
 - **Accounts**: register with name, email and optional callsign + password (8+ chars). Log in with *any* of name / email / callsign.
 - **Remembers the last login**: the app signs straight back in as the last user on startup (session token kept encrypted via the OS keystore). **Log out** clears the token, returns to the login screen with the last name prefilled, and you can log in as someone else.

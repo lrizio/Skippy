@@ -1,0 +1,16 @@
+{
+  "name": "skippy-android",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Skippy for Android (Capacitor wrapper around the desktop renderer)",
+  "scripts": {
+    "sync-web": "node scripts/sync-web.js",
+    "build": "node scripts/sync-web.js && npx cap sync android"
+  },
+  "dependencies": {
+    "@capacitor/android": "^8.6.0",
+    "@capacitor/cli": "^8.6.0",
+    "@capacitor/core": "^8.6.0",
+    "@capacitor/filesystem": "^8.1.5"
+  }
+}

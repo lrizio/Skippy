@@ -1,0 +1,37 @@
+/* Phone layout, loaded after style.css */
+html, body { height: 100%; overscroll-behavior: none; -webkit-tap-highlight-color: transparent; }
+body { font-size: 15px; padding-top: env(safe-area-inset-top); }
+button { touch-action: manipulation; }
+input, select { font-size: 16px; } /* avoids zoom-on-focus */
+
+/* features the phone does not have */
+#btn-share, #btn-rec, #rec-badge, #btn-reset-layout, #btn-recordings, #side-resizer, #chk-autostart,
+label:has(> #chk-autostart), .tile .rz, #modal-recordings, #modal-screens { display: none !important; }
+.call-timer { font-size: 16px; }
+.dev-wrap #dev-pop { left: auto; right: 0; }
+
+/* sign-in card fills the screen */
+.card { width: 100%; max-width: 420px; border: 0; border-radius: 0; padding: 20px 18px; background: transparent; overflow-y: auto; max-height: 100%; }
+#screen-login.center { justify-content: flex-start; padding-top: 24px; overflow-y: auto; }
+
+/* lobby: one column */
+.lobby { flex-direction: column; padding: 14px; gap: 18px; }
+.lobby-left, .lobby-right { max-width: none; min-width: 0; flex: none; }
+.device-grid { grid-template-columns: 1fr; }
+#screen-lobby .topbar { flex-wrap: wrap; gap: 8px; padding: 8px 10px; }
+#screen-lobby .topbar .who { flex-basis: 100%; order: 9; }
+
+/* call: compact bars, tiles tiled by script, chat as a full-screen overlay */
+#screen-call .topbar { padding: 6px 8px; gap: 6px; }
+#screen-call .topbar .who, #screen-call .logo { display: none; }
+#screen-call .ctl, #screen-call .ghost, #screen-call .danger { padding: 6px 8px; font-size: 12px; }
+#screen-call .topbar { gap: 5px; }
+#screen-lobby .logo { display: none; }
+.call-body { position: relative; }
+.tile { cursor: default; }
+.tile-fs { opacity: 1; }
+.side { position: absolute; inset: 0; width: 100% !important; z-index: 15; border-left: 0; }
+.modal-card { width: 94vw; padding: 18px; max-height: 92vh; overflow-y: auto; }
+.chat-form { padding-bottom: calc(10px + env(safe-area-inset-bottom)); }
+.ghost-link { display: block; text-align: center; margin: 8px 0; color: var(--accent); }
+.update-banner { flex-wrap: wrap; padding-top: calc(8px + env(safe-area-inset-top)); }

@@ -3,3 +3,6 @@
 *.ico binary
 *.exe binary
 *.zip binary
+android/android/gradlew text eol=lf
+*.apk binary
+*.jar binary

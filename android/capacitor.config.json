@@ -1,0 +1,9 @@
+{
+  "appId": "com.hamprojects.skippy",
+  "appName": "Skippy",
+  "webDir": "www",
+  "backgroundColor": "#0f1419",
+  "server": { "androidScheme": "http", "cleartext": true },
+  "android": { "allowMixedContent": true },
+  "plugins": { "CapacitorHttp": { "enabled": true } }
+}
