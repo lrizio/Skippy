@@ -3,6 +3,8 @@
 Group video calls for up to 10 people - audio, video, chat with history, file transfer and direct calls.
 Desktop app for Windows (installer provided), macOS and Linux (build from source), plus a small server you run for your group.
 
+**Downloads:** [Windows app + server (latest release)](https://github.com/lrizio/Skippy/releases/latest) &nbsp;|&nbsp; [**Android app (APK) + install guide**](https://github.com/lrizio/Skippy/releases/tag/android-v1.0.0)
+
 ## Download and install
 
 1. **Install the app** - download `Skippy-Setup-<version>.exe` from the [latest release](https://github.com/lrizio/Skippy/releases/latest) and run it.
@@ -26,7 +28,7 @@ Full instructions with screenshots: **[Skippy User Guide (PDF)](docs/Skippy%20Us
 macOS/Linux: build the app yourself (`cd app && npm install && npm run dist` on that OS).
 
 ### Android (client only)
-`Skippy-Android-<version>.apk` (in the `android-v*` releases) is a phone client for the same server: log in, rooms, direct calls, chat and file transfer.
+[`Skippy-Android-<version>.apk`](https://github.com/lrizio/Skippy/releases/tag/android-v1.0.0) (in the `android-v*` releases, with the "Skippy for Android User Guide" PDF) is a phone client for the same server: log in, rooms, direct calls, chat and file transfer.
 Install it by sideloading (allow "install unknown apps", or `adb install -r Skippy-Android-<version>.apk`), then enter the server address under **Server** - if the server is on Tailscale, the phone needs Tailscale running too.
 Not on the phone: recording/transcripts, screen sharing, and ringing while the app is closed.
 Build it yourself: needs JDK 21 and the Android SDK (platform 36); `cd android && npm install && npm run build`, then `gradlew assembleDebug` in `android/android`. The Android app shares `app/renderer` with the desktop app (`android/shim` holds the phone-specific parts).
