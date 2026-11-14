@@ -1,13 +1,23 @@
 # Skippy
 
 Group video calls for up to 10 people - audio, video, chat with history, file transfer and direct calls.
-Desktop app for Windows (installer provided), macOS (dmg via the Apple workflow) and Linux (build from source), plus a small server you run for your group.
+Apps for **Windows, macOS, Linux, Android and iPhone**, plus a small server you run for your group. All apps share the same interface and talk to the same server.
 
-**Downloads:** [Windows app + server (latest release)](https://github.com/lrizio/Skippy/releases/latest) &nbsp;|&nbsp; [**Android app (APK) + install guide**](https://github.com/lrizio/Skippy/releases/tag/android-v1.0.0) &nbsp;|&nbsp; [**Mac + iPhone (test release)**](https://github.com/lrizio/Skippy/releases/tag/apple-v1.18.0)
+| Platform | Download | Status | Guide |
+|---|---|---|---|
+| **Windows** | [`Skippy-Setup-<version>.exe`](https://github.com/lrizio/Skippy/releases/latest) | Stable | [Skippy User Guide](docs/Skippy%20User%20Guide.pdf) |
+| **Android** | [`Skippy-Android-<version>.apk`](https://github.com/lrizio/Skippy/releases/tag/android-v1.0.0) | Stable (phone client) | [Skippy for Android User Guide](docs/Skippy%20for%20Android%20User%20Guide.pdf) |
+| **macOS** | [`Skippy-<version>-mac.dmg`](https://github.com/lrizio/Skippy/releases/tag/apple-v1.18.0) | **Test release** (not yet run on real Apple hardware) | [Skippy for Mac and iPhone User Guide](docs/Skippy%20for%20Mac%20and%20iPhone%20User%20Guide.pdf) |
+| **iPhone / iPad** | [`Skippy-unsigned.ipa`](https://github.com/lrizio/Skippy/releases/tag/apple-v1.18.0) (you sign it yourself) | **Test release** (phone client) | same guide as macOS |
+| **Linux** | [AppImage / .deb, x86_64 + arm64](https://github.com/lrizio/Skippy/releases/tag/linux-v1.19.0) | **Test release** | [Skippy for Linux User Guide](docs/Skippy%20for%20Linux%20User%20Guide.pdf) |
+| **Server** | [`Skippy-Server-*` in the latest release](https://github.com/lrizio/Skippy/releases/latest) | Stable; runs on Windows, Linux, macOS (Node 22.13+) | see below |
+
+The phone apps (Android, iPhone) are clients only: no recording, no screen sharing, and no ringing while the app is closed.
+**Test releases** are built and start-tested on GitHub's machines but need feedback from real users - please report what works and what doesn't at [Issues](https://github.com/lrizio/Skippy/issues).
 
 ## Download and install
 
-1. **Install the app** - download `Skippy-Setup-<version>.exe` from the [latest release](https://github.com/lrizio/Skippy/releases/latest) and run it.
+1. **Install the app** (Windows shown; other platforms below) - download `Skippy-Setup-<version>.exe` from the [latest release](https://github.com/lrizio/Skippy/releases/latest) and run it.
    Windows SmartScreen will say "unknown publisher" because the installer isn't code-signed: click *More info -> Run anyway*.
 2. **Get a server** - one person per group runs the Skippy server (everyone else just connects to it):
    - **Windows, easiest:** download `Skippy-Server-Windows-<version>.zip` from the release, unzip it and double-click `Start Skippy Server.bat` (or `Run Skippy Server in Background.bat` to run it hidden). No Node.js needed - `Skippy-Server.exe` has everything inside. Same SmartScreen note as above.
@@ -25,20 +35,24 @@ Desktop app for Windows (installer provided), macOS (dmg via the Apple workflow)
 
 Full instructions with screenshots: **[Skippy User Guide (PDF)](docs/Skippy%20User%20Guide.pdf)**, also attached to each release.
 
-### macOS (desktop) and iPhone
-Both are built by the **Build Apple apps** workflow (GitHub > Actions > Run workflow), so no Mac is needed to get the files; or build locally on a Mac.
-**Test release:** these two are untested on real Apple hardware; please report results at [Issues](https://github.com/lrizio/Skippy/issues). Guide: [Skippy for Mac and iPhone User Guide.pdf](https://github.com/lrizio/Skippy/releases/tag/apple-v1.18.0).
-- **Mac app:** `Skippy-<version>-mac.dmg` (universal: Apple silicon + Intel), unsigned. First launch: right-click the app > Open (or `xattr -dr com.apple.quarantine /Applications/Skippy.app`). macOS asks for camera/microphone at launch; screen sharing needs *System Settings > Privacy & Security > Screen Recording*. It lives in the menu bar, like the tray on Windows. Local build: `cd app && npm install && npm run dist:mac`. Transcripts: `brew install whisper-cpp`, then the in-app setup downloads the language model.
-- **iPhone app:** `Skippy-unsigned.ipa`, same features as Android (no recording, screen sharing or ringing while closed; no speaker picker, iOS chooses the route). It must be signed to install: sideload with [Sideloadly](https://sideloadly.io/) or AltStore using a free Apple ID (re-sign every 7 days), or open `android/ios/App/App.xcodeproj` in Xcode, pick your team and press Run. Received files appear in *Files > On My iPhone > Skippy*. If the server is on Tailscale, the iPhone needs Tailscale running too. Local build: `cd android && npm install && npm run build:ios`.
+### macOS
+Test release, `Skippy-<version>-mac.dmg` (universal: Apple silicon + Intel), unsigned. Built by the **Build Apple apps** workflow, so no Mac is needed to get the file.
+First launch: right-click the app > Open (or `xattr -dr com.apple.quarantine /Applications/Skippy.app`). macOS asks for camera/microphone at launch; screen sharing needs *System Settings > Privacy & Security > Screen Recording*. It lives in the menu bar, like the tray on Windows. Transcripts: `brew install whisper-cpp`, then the in-app setup downloads the language model.
+Local build on a Mac: `cd app && npm install && npm run dist:mac`.
+
+### iPhone / iPad (client only)
+Test release, `Skippy-unsigned.ipa`. It must be signed to install: sideload with [Sideloadly](https://sideloadly.io/) or AltStore using a free Apple ID (re-sign every 7 days), or open `android/ios/App/App.xcodeproj` in Xcode, pick your team and press Run. No speaker picker (iOS chooses the audio route). Received files appear in *Files > On My iPhone > Skippy*. If the server is on Tailscale, the iPhone needs Tailscale running too.
+Local build (on a Mac): `cd android && npm install && npm run build:ios`. Guide: "Skippy for Mac and iPhone User Guide" (attached to the `apple-v*` release).
 
 ### Linux
-`Skippy-<version>-linux-x86_64.AppImage` / `-arm64.AppImage` (any distro) and `Skippy-<version>-linux-amd64.deb` / `-arm64.deb` (Debian/Ubuntu/Raspberry Pi OS), built by the **Build Linux apps** workflow. Test release, see "Skippy for Linux User Guide.pdf". Local build: `cd app && npm install && npm run dist:linux` on Linux. Ubuntu 23.10+ may need `--no-sandbox` for the AppImage (the .deb is fine); transcripts need `whisper-cli` on the PATH.
+Test release (`linux-v*`): `Skippy-<version>-linux-x86_64.AppImage` / `-arm64.AppImage` (any distro; `chmod +x` and run) and `Skippy-<version>-linux-amd64.deb` / `-arm64.deb` (Debian/Ubuntu/Raspberry Pi OS; `sudo apt install ./file.deb`), built by the **Build Linux apps** workflow. Ubuntu 23.10+ may need `--no-sandbox` for the AppImage (the .deb is fine); GNOME needs the AppIndicator extension to show the tray icon; screen sharing under Wayland uses PipeWire; transcripts need `whisper-cli` on the PATH.
+Local build on Linux: `cd app && npm install && npm run dist:linux`. Guide: "Skippy for Linux User Guide" (attached to the release).
 
 ### Android (client only)
 [`Skippy-Android-<version>.apk`](https://github.com/lrizio/Skippy/releases/tag/android-v1.0.0) (in the `android-v*` releases, with the "Skippy for Android User Guide" PDF) is a phone client for the same server: log in, rooms, direct calls, chat and file transfer.
 Install it by sideloading (allow "install unknown apps", or `adb install -r Skippy-Android-<version>.apk`), then enter the server address under **Server** - if the server is on Tailscale, the phone needs Tailscale running too.
-Not on the phone: recording/transcripts, screen sharing, and ringing while the app is closed.
-Build it yourself: needs JDK 21 and the Android SDK (platform 36); `cd android && npm install && npm run build`, then `gradlew assembleDebug` in `android/android`. The Android app shares `app/renderer` with the desktop app (`android/shim` holds the phone-specific parts).
+Build it yourself: needs JDK 21 and the Android SDK (platform 36); `cd android && npm install && npm run build`, then `gradlew assembleDebug` in `android/android`.
+The Android and iPhone apps share `app/renderer` with the desktop apps (`android/shim` holds the phone-specific parts; the Capacitor project for both lives in `android/`).
 
 ## What it does
 - **Accounts**: register with name, email and optional callsign + password (8+ chars). Log in with *any* of name / email / callsign.
@@ -72,14 +86,14 @@ Build it yourself: needs JDK 21 and the Android SDK (platform 36); `cd android &
 First time: `npm install` in both `server/` and `app/`, then `node app/node_modules/electron/install.js` if the Electron binary didn't download.
 
 ## Packaging
-`cd app && npm run dist` builds an installer for the current OS (NSIS / dmg / AppImage+deb) via electron-builder.
+`cd app && npm run dist` builds an installer for the current OS (NSIS / dmg / AppImage+deb) via electron-builder; `dist:mac` and `dist:linux` are the explicit variants. Mac and iPhone builds need macOS, so they run on GitHub Actions (`.github/workflows/build-apple.yml`); `build-linux.yml` does the same for Linux. Both are started by hand from the Actions tab.
 
 ## Things to know
 - **Topology is a full mesh**: each participant sends video to each other participant. Fine for small groups; bitrate is lowered automatically as the room fills (800 kbps -> 400 -> 200 kbps per stream). 10 people on a weak uplink will struggle.
 - **Internet use**: STUN (Google's public server) is configured by default, which handles most home NATs. Some networks need a TURN relay: add it to `iceServers` in the app's `settings.json` (in the Electron userData folder).
 - **Security**: passwords are scrypt-hashed server-side. Authenticator secrets are stored in the server database (they must be readable to check codes), so the host can see them - 2FA protects against stolen passwords, not a malicious host. Over the internet, put the server behind TLS (e.g. a reverse proxy) and use `wss://` in the Server field - plain `ws://` sends the password unencrypted. Media is always DTLS-SRTP encrypted by WebRTC.
 - Direct-call rooms are private to the two users; the server rejects anyone else.
-- Settings file: `%APPDATA%\skippy\settings.json` (Windows).
+- Settings file: `%APPDATA%\skippy\settings.json` (Windows), `~/Library/Application Support/skippy/settings.json` (macOS), `~/.config/skippy/settings.json` (Linux).
 
 ## Tests
 `server/test.js` - server integration test (auth, 10-person cap, history). Run: `cd server && node test.js`.
