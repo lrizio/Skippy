@@ -147,7 +147,7 @@ def build():
         "<b>The app (Windows).</b> Download <i>Skippy-Setup-&lt;version&gt;.exe</i> from the project's Releases page "
         "(github.com/lrizio/Skippy/releases) and run it. Windows SmartScreen may say <i>unknown publisher</i> "
         "because the installer is not code-signed: click <b>More info</b>, then <b>Run anyway</b>. The installer "
-        "adds Start-menu and Desktop shortcuts.",
+        "adds Start-menu and Desktop shortcuts. <i>Mac and iPhone versions have their own guide, \"Skippy for Mac and iPhone User Guide\", on the Releases page.</i>",
         "<b>The server (the host only).</b> Install Node.js 22.13 or newer from nodejs.org. Download "
         "<i>Skippy-Server-&lt;version&gt;.zip</i> from the same page, unzip it and open a command window in that folder:",
     ]))
