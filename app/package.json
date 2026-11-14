@@ -45,7 +45,7 @@
       ],
       "category": "public.app-category.social-networking",
       "artifactName": "Skippy-${version}-mac.${ext}",
-      "icon": "icon.png",
+      "icon": "build/icon-mac.png",
       "hardenedRuntime": true,
       "gatekeeperAssess": false,
       "entitlements": "build/entitlements.mac.plist",
