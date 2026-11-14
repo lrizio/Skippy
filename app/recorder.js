@@ -127,11 +127,13 @@ function findExe(dir) {
   } catch { /* none */ }
   return null;
 }
-const engineExe = () => findExe(engineDir());
+// macOS has no prebuilt whisper.cpp download, so use the Homebrew one (brew install whisper-cpp).
+const MAC_EXES = ['/opt/homebrew/bin/whisper-cli', '/usr/local/bin/whisper-cli'];
+const engineExe = () => findExe(engineDir()) || (process.platform === 'darwin' ? MAC_EXES.find(p => fs.existsSync(p)) || null : null);
 const modelFile = () => path.join(engineDir(), MODEL_NAME);
 const engineReady = () => !!engineExe() && fs.existsSync(modelFile());
 
-ipcMain.handle('rec:engine-status', () => ({ ready: engineReady(), supported: process.platform === 'win32', sizeMB: 190 }));
+ipcMain.handle('rec:engine-status', () => ({ ready: engineReady(), supported: process.platform === 'win32' || process.platform === 'darwin', sizeMB: 190 }));
 
 async function download(url, dest, onProgress) {
   const r = await fetch(url, { headers: { 'User-Agent': 'Skippy' }, redirect: 'follow' });
@@ -150,7 +152,21 @@ async function download(url, dest, onProgress) {
 }
 
 ipcMain.handle('rec:engine-install', async e => {
-  if (process.platform !== 'win32') return { ok: false, error: 'Automatic setup is Windows only. Put whisper-cli and ' + MODEL_NAME + ' in ' + engineDir() };
+  if (process.platform === 'darwin') {
+    // Engine comes from Homebrew; only the language model is downloaded here.
+    if (!engineExe()) return { ok: false, error: 'Install the speech engine first: open Terminal and run  brew install whisper-cpp  then try again.' };
+    const send = (what, pct) => { try { e.sender.send('rec:progress', { what, pct }); } catch { /* window gone */ } };
+    try {
+      fs.mkdirSync(engineDir(), { recursive: true });
+      if (!fs.existsSync(modelFile())) {
+        const part = modelFile() + '.part';
+        await download(MODEL_URL, part, p => send('Downloading the language model', p));
+        fs.renameSync(part, modelFile());
+      }
+      return { ok: true };
+    } catch (err) { return { ok: false, error: err.message }; }
+  }
+  if (process.platform !== 'win32') return { ok: false, error: 'Automatic setup is Windows and macOS only. Put whisper-cli and ' + MODEL_NAME + ' in ' + engineDir() };
   const send = (what, pct) => { try { e.sender.send('rec:progress', { what, pct }); } catch { /* window gone */ } };
   try {
     fs.mkdirSync(engineDir(), { recursive: true });

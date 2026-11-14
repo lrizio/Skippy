@@ -26,3 +26,15 @@ must('<link rel="stylesheet" href="style.css">', 'css');
 html = html.replace('<link rel="stylesheet" href="style.css">', '<link rel="stylesheet" href="style.css">\n<link rel="stylesheet" href="mobile.css">\n<script src="version.js"></script>\n<script src="shim.js"></script>');
 fs.writeFileSync(path.join(out, 'index.html'), html);
 console.log('www/ ready, Skippy', version);
+
+// Keep the iOS project's version in step with the desktop app (build number = maj*10000 + min*100 + patch).
+const pbx = path.join(root, 'ios', 'App', 'App.xcodeproj', 'project.pbxproj');
+if (fs.existsSync(pbx)) {
+  const [maj, min, pat] = version.split('.').map(Number);
+  const build = String(maj * 10000 + min * 100 + pat);
+  let t = fs.readFileSync(pbx, 'utf8');
+  t = t.replace(/MARKETING_VERSION = [^;]+;/g, `MARKETING_VERSION = ${version};`)
+       .replace(/CURRENT_PROJECT_VERSION = [^;]+;/g, `CURRENT_PROJECT_VERSION = ${build};`);
+  fs.writeFileSync(pbx, t);
+  console.log('iOS project version', version, 'build', build);
+}

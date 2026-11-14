@@ -1,5 +1,5 @@
 'use strict';
-const { app, BrowserWindow, ipcMain, session, safeStorage, shell, Tray, Menu, nativeImage, dialog, desktopCapturer } = require('electron');
+const { app, BrowserWindow, ipcMain, session, safeStorage, shell, Tray, Menu, nativeImage, dialog, desktopCapturer, systemPreferences } = require('electron');
 const fs = require('fs');
 const QRCode = require('qrcode');
 const path = require('path');
@@ -14,7 +14,9 @@ const DEFAULTS = {
 };
 
 const ICON = path.join(__dirname, 'icon.png');
-const startHidden = process.argv.includes('--hidden');
+const IS_MAC = process.platform === 'darwin';
+// macOS login items cannot pass arguments, so ask the OS whether we were opened at login instead.
+const startHidden = process.argv.includes('--hidden') || (IS_MAC && app.getLoginItemSettings().wasOpenedAtLogin);
 
 let settingsFile;
 let settings = { ...DEFAULTS };
@@ -53,7 +55,8 @@ function writeToken(token) {
 // ---- start at OS login (hidden, straight to the tray) ----
 function getAutostart() { return app.getLoginItemSettings().openAtLogin; }
 function setAutostart(on) {
-  app.setLoginItemSettings({
+  if (IS_MAC) app.setLoginItemSettings({ openAtLogin: !!on, openAsHidden: true });
+  else app.setLoginItemSettings({
     openAtLogin: !!on,
     path: process.execPath,
     args: app.isPackaged ? ['--hidden'] : [app.getAppPath(), '--hidden'],
@@ -68,7 +71,7 @@ function showWindow() {
   win.show();
   win.focus();
 }
-function hideToTray() { win?.hide(); }
+function hideToTray() { win?.hide(); }  // 'hide' event below drops the Dock icon on macOS
 
 function refreshTrayMenu() {
   if (!tray) return;
@@ -80,7 +83,9 @@ function refreshTrayMenu() {
   ]));
 }
 function createTray() {
-  tray = new Tray(nativeImage.createFromPath(ICON).resize({ width: 16, height: 16 }));
+  // On a Mac the menu-bar icon is 18 px and the Dock icon is hidden while the window is hidden (see hideToTray).
+  const sz = IS_MAC ? 18 : 16;
+  tray = new Tray(nativeImage.createFromPath(ICON).resize({ width: sz, height: sz }));
   tray.setToolTip('Skippy');
   tray.on('click', showWindow);
   refreshTrayMenu();
@@ -172,6 +177,11 @@ ipcMain.handle('update:check', async (_e, wsUrl) => {
 // Tailscale check: ask the local Tailscale CLI whether it is connected.
 // Returns 'running' | 'stopped' | 'needs-login' | 'not-installed' | 'unknown'.
 function tailscaleExe() {
+  if (process.platform === 'darwin') {
+    // The Mac App Store / standalone app bundles its CLI inside the app; Homebrew puts one on the PATH.
+    for (const p of ['/Applications/Tailscale.app/Contents/MacOS/Tailscale', '/opt/homebrew/bin/tailscale', '/usr/local/bin/tailscale']) if (fs.existsSync(p)) return p;
+    return 'tailscale';
+  }
   if (process.platform !== 'win32') return 'tailscale';
   const p = path.join(process.env.ProgramFiles || 'C:/Program Files', 'Tailscale', 'tailscale.exe');
   return fs.existsSync(p) ? p : 'tailscale';
@@ -240,9 +250,22 @@ function createWindow() {
     if (!quitting) { e.preventDefault(); win.hide(); }
   });
   win.on('closed', () => { win = null; });
+  if (IS_MAC) { // menu-bar app: Dock icon only while the window is visible
+    win.on('show', () => app.dock?.show());
+    win.on('hide', () => app.dock?.hide());
+  }
   // Never navigate the app window away; open external links in the OS browser.
   win.webContents.setWindowOpenHandler(({ url }) => { if (/^https?:/.test(url)) shell.openExternal(url); return { action: 'deny' }; });
   win.webContents.on('will-navigate', e => e.preventDefault());
+}
+
+// macOS asks for camera / microphone access the first time they are used, but only if the app asks for it
+// explicitly; otherwise getUserMedia silently fails. Ask up front so the prompt appears at launch, not mid-call.
+async function askMacPermissions() {
+  try {
+    if (systemPreferences.getMediaAccessStatus('microphone') === 'not-determined') await systemPreferences.askForMediaAccess('microphone');
+    if (systemPreferences.getMediaAccessStatus('camera') === 'not-determined') await systemPreferences.askForMediaAccess('camera');
+  } catch { /* the renderer reports a clear error if access is denied */ }
 }
 
 if (!app.requestSingleInstanceLock()) {
@@ -265,6 +288,7 @@ if (!app.requestSingleInstanceLock()) {
     session.defaultSession.setPermissionCheckHandler((_wc, permission) => allowed.includes(permission));
     createTray();
     createWindow();
+    if (IS_MAC) askMacPermissions();
     app.on('activate', showWindow);
   });
   app.on('before-quit', () => { quitting = true; clearIncoming(); });

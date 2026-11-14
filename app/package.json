@@ -1,12 +1,13 @@
 {
   "name": "skippy",
   "productName": "Skippy",
-  "version": "1.17.1",
+  "version": "1.18.0",
   "description": "Skippy - group video conferencing for up to 10 participants",
   "main": "main.js",
   "scripts": {
     "start": "electron .",
-    "dist": "electron-builder"
+    "dist": "electron-builder",
+    "dist:mac": "electron-builder --mac --universal"
   },
   "build": {
     "appId": "com.hamprojects.skippy",
@@ -18,7 +19,8 @@
       "icon.png",
       "icon.ico",
       "renderer/**/*",
-      "package.json"
+      "package.json",
+      "!**/*.map"
     ],
     "win": {
       "target": [
@@ -33,9 +35,26 @@
       "artifactName": "Skippy-Setup-${version}.${ext}"
     },
     "mac": {
-      "target": "dmg",
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "universal"
+          ]
+        }
+      ],
       "category": "public.app-category.social-networking",
-      "artifactName": "Skippy-${version}.${ext}"
+      "artifactName": "Skippy-${version}-mac.${ext}",
+      "icon": "icon.png",
+      "hardenedRuntime": true,
+      "gatekeeperAssess": false,
+      "entitlements": "build/entitlements.mac.plist",
+      "entitlementsInherit": "build/entitlements.mac.plist",
+      "extendInfo": {
+        "NSCameraUsageDescription": "Skippy uses the camera so the other people in a call can see you.",
+        "NSMicrophoneUsageDescription": "Skippy uses the microphone so the other people in a call can hear you.",
+        "NSLocalNetworkUsageDescription": "Skippy connects to other call participants and to your Skippy server."
+      }
     },
     "linux": {
       "target": [
@@ -58,6 +77,9 @@
       "shortcutName": "Skippy",
       "include": "build/installer.nsh",
       "deleteAppDataOnUninstall": false
+    },
+    "dmg": {
+      "title": "Skippy ${version}"
     }
   },
   "devDependencies": {

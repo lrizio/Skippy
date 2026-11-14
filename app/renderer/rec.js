@@ -128,7 +128,7 @@ function buildTranscript(info, lines) {
 async function ensureEngine(setStatus) {
   const st = await api.recEngineStatus();
   if (st.ready) return true;
-  if (!st.supported) { alert('Speech engine setup is only automatic on Windows. See the user guide.'); return false; }
+  if (!st.supported) { alert('Speech engine setup is only automatic on Windows and macOS. See the user guide.'); return false; }
   if (!confirm(`Transcription runs on this computer, so nothing is sent to anyone.\n\nIt needs a one-time download of about ${st.sizeMB} MB (the speech engine and its language model, from GitHub and Hugging Face).\n\nDownload now?`)) return false;
   api.onRecProgress(p => setStatus(`${p.what}${p.pct > 0 && p.pct < 1 ? ' ' + Math.round(p.pct * 100) + '%' : ''}…`));
   const r = await api.recEngineInstall();

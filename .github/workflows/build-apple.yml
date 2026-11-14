@@ -1,0 +1,52 @@
+# Builds the Apple versions of Skippy on GitHub's macOS runners (no Mac needed).
+# Run it from the Actions tab: "Build Apple apps" > Run workflow. Results appear as downloadable artifacts.
+name: Build Apple apps
+on: workflow_dispatch
+
+jobs:
+  mac:
+    name: macOS app (.dmg, Apple silicon + Intel)
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - run: npm ci
+        working-directory: app
+      - name: Build universal dmg (unsigned)
+        working-directory: app
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"   # no Developer ID certificate: build unsigned
+        run: npx electron-builder --mac --universal --publish never
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Skippy-macOS
+          path: app/dist/*.dmg
+
+  ios:
+    name: iPhone app (unsigned .ipa)
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - run: npm ci
+        working-directory: android
+      - name: Sync web assets into the iOS project
+        working-directory: android
+        run: npm run build:ios
+      - name: Build for device without code signing
+        working-directory: android/ios/App
+        run: |
+          xcodebuild -project App.xcodeproj -scheme App -configuration Release \
+            -sdk iphoneos -destination 'generic/platform=iOS' \
+            -derivedDataPath build CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" build
+      - name: Package .ipa
+        working-directory: android/ios/App
+        run: |
+          mkdir Payload && cp -R build/Build/Products/Release-iphoneos/App.app Payload/
+          zip -qr Skippy-unsigned.ipa Payload
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Skippy-iOS-unsigned
+          path: android/ios/App/Skippy-unsigned.ipa

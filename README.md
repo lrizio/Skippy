@@ -1,7 +1,7 @@
 # Skippy
 
 Group video calls for up to 10 people - audio, video, chat with history, file transfer and direct calls.
-Desktop app for Windows (installer provided), macOS and Linux (build from source), plus a small server you run for your group.
+Desktop app for Windows (installer provided), macOS (dmg via the Apple workflow) and Linux (build from source), plus a small server you run for your group.
 
 **Downloads:** [Windows app + server (latest release)](https://github.com/lrizio/Skippy/releases/latest) &nbsp;|&nbsp; [**Android app (APK) + install guide**](https://github.com/lrizio/Skippy/releases/tag/android-v1.0.0)
 
@@ -25,7 +25,12 @@ Desktop app for Windows (installer provided), macOS and Linux (build from source
 
 Full instructions with screenshots: **[Skippy User Guide (PDF)](docs/Skippy%20User%20Guide.pdf)**, also attached to each release.
 
-macOS/Linux: build the app yourself (`cd app && npm install && npm run dist` on that OS).
+### macOS (desktop) and iPhone
+Both are built by the **Build Apple apps** workflow (GitHub > Actions > Run workflow), so no Mac is needed to get the files; or build locally on a Mac.
+- **Mac app:** `Skippy-<version>-mac.dmg` (universal: Apple silicon + Intel), unsigned. First launch: right-click the app > Open (or `xattr -dr com.apple.quarantine /Applications/Skippy.app`). macOS asks for camera/microphone at launch; screen sharing needs *System Settings > Privacy & Security > Screen Recording*. It lives in the menu bar, like the tray on Windows. Local build: `cd app && npm install && npm run dist:mac`. Transcripts: `brew install whisper-cpp`, then the in-app setup downloads the language model.
+- **iPhone app:** `Skippy-unsigned.ipa`, same features as Android (no recording, screen sharing or ringing while closed; no speaker picker, iOS chooses the route). It must be signed to install: sideload with [Sideloadly](https://sideloadly.io/) or AltStore using a free Apple ID (re-sign every 7 days), or open `android/ios/App/App.xcodeproj` in Xcode, pick your team and press Run. Received files appear in *Files > On My iPhone > Skippy*. If the server is on Tailscale, the iPhone needs Tailscale running too. Local build: `cd android && npm install && npm run build:ios`.
+
+Linux: build the app yourself (`cd app && npm install && npm run dist` on that OS).
 
 ### Android (client only)
 [`Skippy-Android-<version>.apk`](https://github.com/lrizio/Skippy/releases/tag/android-v1.0.0) (in the `android-v*` releases, with the "Skippy for Android User Guide" PDF) is a phone client for the same server: log in, rooms, direct calls, chat and file transfer.

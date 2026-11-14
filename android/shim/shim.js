@@ -3,6 +3,10 @@
 (function () {
   window.SKIPPY_MOBILE = true;
   const cap = window.Capacitor || {};
+  const PLATFORM = (cap.getPlatform && cap.getPlatform()) || 'web';
+  const IOS = PLATFORM === 'ios';
+  const DEVICE = IOS ? 'iPhone' : 'Android';
+  if (IOS) document.documentElement.classList.add('ios'); // CSS hook: no speaker picker on iOS
   const FS = cap.Plugins && cap.Plugins.Filesystem;
   const KEY = 'skippy.settings';
   const readLS = () => { try { return JSON.parse(localStorage.getItem(KEY) || '{}'); } catch { return {}; } };
@@ -20,7 +24,7 @@
   // ---- received files: appended to a cache file, copied to a visible folder on "Save" ----
   const incoming = new Map(); // id -> { path, written, chain }
   const noop = async () => {};
-  const rec = async () => { throw new Error('Recording is not available on Android.'); };
+  const rec = async () => { throw new Error('Recording is not available on ' + DEVICE + '.'); };
 
   window.skippy = {
     loadSettings: async () => {
@@ -95,7 +99,8 @@
         const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob(f.mem)); a.download = safe; a.click();
         return { ok: true, path: 'Downloads/' + safe };
       }
-      for (const [directory, label] of [['DOCUMENTS', 'Documents'], ['EXTERNAL', 'app storage']]) {
+      // iOS: the app's Documents folder shows up in the Files app under On My iPhone > Skippy.
+      for (const [directory, label] of [['DOCUMENTS', IOS ? 'Files app > On My iPhone > Skippy' : 'Documents'], ['EXTERNAL', 'app storage']]) {
         try {
           await FS.copy({ from: f.path, directory: 'CACHE', to: 'Skippy/' + safe, toDirectory: directory });
           return { ok: true, path: label + '/Skippy/' + safe };

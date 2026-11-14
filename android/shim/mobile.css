@@ -35,3 +35,7 @@ label:has(> #chk-autostart), .tile .rz, #modal-recordings, #modal-screens { disp
 .chat-form { padding-bottom: calc(10px + env(safe-area-inset-bottom)); }
 .ghost-link { display: block; text-align: center; margin: 8px 0; color: var(--accent); }
 .update-banner { flex-wrap: wrap; padding-top: calc(8px + env(safe-area-inset-top)); }
+
+/* iPhone: home-indicator inset, and Safari/WebKit cannot choose an output device (audio follows the iOS route) */
+body { padding-bottom: env(safe-area-inset-bottom); }
+.ios label:has(> #sel-spk), .ios label:has(> #call-spk) { display: none !important; }
