@@ -58,23 +58,23 @@ def build():
         "<b>tailscale up</b>.",
         f"One file from the <b>{TAG}</b> release at github.com/lrizio/Skippy/releases: the <b>.AppImage</b> (works on any "
         "distribution) or the <b>.deb</b> (Debian, Ubuntu, Mint, Raspberry Pi OS) for your processor "
-        "(<b>x64</b> or <b>arm64</b>).",
+        "(<b>x86_64/amd64</b> for ordinary PCs, <b>arm64</b> for ARM).",
     ]))
 
     f.append(P("Install - choose one", style_h2))
     f.append(P("Option A: AppImage (any distribution)", style_h3))
     f.append(numbered([
-        f"Download <b>Skippy-{VERSION}-linux-x64.AppImage</b> (or <b>-arm64</b>).",
+        f"Download <b>Skippy-{VERSION}-linux-x86_64.AppImage</b> (or <b>-arm64.AppImage</b>).",
         "Make it runnable: right-click it, <b>Properties, Permissions, Allow executing file as program</b> - or in a terminal:",
     ]))
-    f.append(P(f"chmod +x Skippy-{VERSION}-linux-x64.AppImage<br/>./Skippy-{VERSION}-linux-x64.AppImage", style_code))
+    f.append(P(f"chmod +x Skippy-{VERSION}-linux-x86_64.AppImage<br/>./Skippy-{VERSION}-linux-x86_64.AppImage", style_code))
     f.append(P("An AppImage doesn't install anything; keep it somewhere like <b>~/Applications</b>. To update, download "
                "the new file and delete the old one. If it won't start because of <b>FUSE</b>, install it "
                "(<b>sudo apt install libfuse2</b> on Ubuntu 22.04/Debian; <b>libfuse2t64</b> on Ubuntu 24.04), or run "
                "it with <b>--appimage-extract-and-run</b>."))
     f.append(P("Option B: .deb package (Debian / Ubuntu family)", style_h3))
     f.append(P(f"sudo apt install ./Skippy-{VERSION}-linux-amd64.deb", style_code))
-    f.append(P("(Use the <b>arm64</b> file on an ARM machine.) Skippy then appears in your applications menu, and "
+    f.append(P("(Use the <b>-arm64.deb</b> file on an ARM machine.) Skippy then appears in your applications menu, and "
                "<b>skippy</b> starts it from a terminal. Remove it with <b>sudo apt remove skippy</b>."))
     f.append(warn(
         "<b>\"The SUID sandbox helper binary was not configured correctly\"</b> (or the AppImage closes at once on "
@@ -147,7 +147,7 @@ def build():
     f.append(P("Reporting a problem", style_h2))
     f.append(P("Open an issue at <b>github.com/lrizio/Skippy/issues</b> and say:"))
     f.append(bullets([
-        "Skippy <b>version</b> (shown as \"Skippy v...\" on the login and lobby screens) and which file you used (AppImage or deb, x64 or arm64).",
+        "Skippy <b>version</b> (shown as \"Skippy v...\" on the login and lobby screens) and which file you used (AppImage or deb, x86_64 or arm64).",
         "Your <b>distribution and version</b>, desktop (GNOME, KDE...) and whether it is <b>Wayland or X11</b> "
         "(<b>echo $XDG_SESSION_TYPE</b>).",
         "What you did, what you expected and what happened. If Skippy won't start, run it from a terminal and paste the "
