@@ -128,12 +128,15 @@ function findExe(dir) {
   return null;
 }
 // macOS has no prebuilt whisper.cpp download, so use the Homebrew one (brew install whisper-cpp).
-const MAC_EXES = ['/opt/homebrew/bin/whisper-cli', '/usr/local/bin/whisper-cli'];
-const engineExe = () => findExe(engineDir()) || (process.platform === 'darwin' ? MAC_EXES.find(p => fs.existsSync(p)) || null : null);
+// Linux has no prebuilt download either: use a whisper-cli on the PATH or one you built yourself.
+const SYS_EXES = process.platform === 'darwin' ? ['/opt/homebrew/bin/whisper-cli', '/usr/local/bin/whisper-cli']
+  : process.platform === 'linux' ? [...(process.env.PATH || '').split(':').filter(Boolean).map(d => path.join(d, 'whisper-cli')),
+    path.join(require('os').homedir(), '.local', 'bin', 'whisper-cli'), '/usr/local/bin/whisper-cli', '/usr/bin/whisper-cli'] : [];
+const engineExe = () => findExe(engineDir()) || SYS_EXES.find(p => fs.existsSync(p)) || null;
 const modelFile = () => path.join(engineDir(), MODEL_NAME);
 const engineReady = () => !!engineExe() && fs.existsSync(modelFile());
 
-ipcMain.handle('rec:engine-status', () => ({ ready: engineReady(), supported: process.platform === 'win32' || process.platform === 'darwin', sizeMB: 190 }));
+ipcMain.handle('rec:engine-status', () => ({ ready: engineReady(), supported: process.platform === 'win32' || process.platform === 'darwin' || process.platform === 'linux', sizeMB: 190 }));
 
 async function download(url, dest, onProgress) {
   const r = await fetch(url, { headers: { 'User-Agent': 'Skippy' }, redirect: 'follow' });
@@ -152,9 +155,11 @@ async function download(url, dest, onProgress) {
 }
 
 ipcMain.handle('rec:engine-install', async e => {
-  if (process.platform === 'darwin') {
-    // Engine comes from Homebrew; only the language model is downloaded here.
-    if (!engineExe()) return { ok: false, error: 'Install the speech engine first: open Terminal and run  brew install whisper-cpp  then try again.' };
+  if (process.platform === 'darwin' || process.platform === 'linux') {
+    // Engine comes from the system (Homebrew / your own build); only the language model is downloaded here.
+    if (!engineExe()) return { ok: false, error: process.platform === 'darwin'
+      ? 'Install the speech engine first: open Terminal and run  brew install whisper-cpp  then try again.'
+      : 'Install the speech engine first: build whisper.cpp (github.com/ggml-org/whisper.cpp) and put whisper-cli on your PATH or in ~/.local/bin, then try again.' };
     const send = (what, pct) => { try { e.sender.send('rec:progress', { what, pct }); } catch { /* window gone */ } };
     try {
       fs.mkdirSync(engineDir(), { recursive: true });
@@ -166,7 +171,7 @@ ipcMain.handle('rec:engine-install', async e => {
       return { ok: true };
     } catch (err) { return { ok: false, error: err.message }; }
   }
-  if (process.platform !== 'win32') return { ok: false, error: 'Automatic setup is Windows and macOS only. Put whisper-cli and ' + MODEL_NAME + ' in ' + engineDir() };
+  if (process.platform !== 'win32') return { ok: false, error: 'Automatic setup is not available on this system. Put whisper-cli and ' + MODEL_NAME + ' in ' + engineDir() };
   const send = (what, pct) => { try { e.sender.send('rec:progress', { what, pct }); } catch { /* window gone */ } };
   try {
     fs.mkdirSync(engineDir(), { recursive: true });

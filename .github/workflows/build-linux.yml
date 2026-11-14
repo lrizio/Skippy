@@ -1,0 +1,33 @@
+# Builds the Linux versions of Skippy (AppImage + .deb, x64 and arm64) on GitHub's Ubuntu runner.
+# Run it from the Actions tab: "Build Linux apps" > Run workflow. Results appear as downloadable artifacts.
+name: Build Linux apps
+on: workflow_dispatch
+
+jobs:
+  linux:
+    name: Linux (AppImage + deb, x64 + arm64)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - run: npm ci
+        working-directory: app
+      - name: Build
+        working-directory: app
+        run: npx electron-builder --linux --publish never
+      - name: Smoke test - the x64 build must start and stay up for 10 s
+        working-directory: app
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq xvfb libasound2t64
+          set +e
+          timeout 10 xvfb-run -a dist/linux-unpacked/skippy --no-sandbox --user-data-dir=/tmp/skippy-smoke --hidden
+          code=$?
+          echo "exit code $code (124 = still running when the timeout hit = good)"
+          test $code -eq 124
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Skippy-Linux
+          path: |
+            app/dist/*.AppImage
+            app/dist/*.deb

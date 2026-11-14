@@ -1,13 +1,14 @@
 {
   "name": "skippy",
   "productName": "Skippy",
-  "version": "1.18.0",
+  "version": "1.19.0",
   "description": "Skippy - group video conferencing for up to 10 participants",
   "main": "main.js",
   "scripts": {
     "start": "electron .",
     "dist": "electron-builder",
-    "dist:mac": "electron-builder --mac --universal"
+    "dist:mac": "electron-builder --mac --universal",
+    "dist:linux": "electron-builder --linux"
   },
   "build": {
     "appId": "com.hamprojects.skippy",
@@ -58,11 +59,27 @@
     },
     "linux": {
       "target": [
-        "AppImage",
-        "deb"
+        {
+          "target": "AppImage",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        },
+        {
+          "target": "deb",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        }
       ],
-      "category": "Network",
-      "artifactName": "Skippy-${version}.${ext}"
+      "category": "Network;AudioVideo",
+      "executableName": "skippy",
+      "maintainer": "VK3EI <lrizio@users.noreply.github.com>",
+      "synopsis": "Group video calling for up to 10 people",
+      "icon": "build/icon-mac.png",
+      "artifactName": "Skippy-${version}-linux-${arch}.${ext}"
     },
     "icon": "icon.png",
     "directories": {

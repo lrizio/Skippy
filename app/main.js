@@ -15,6 +15,8 @@ const DEFAULTS = {
 
 const ICON = path.join(__dirname, 'icon.png');
 const IS_MAC = process.platform === 'darwin';
+// Linux: let Chromium use the PipeWire/portal screen-capture path so screen sharing also works under Wayland.
+if (process.platform === 'linux') app.commandLine.appendSwitch('enable-features', 'WebRTCPipeWireCapturer');
 // macOS login items cannot pass arguments, so ask the OS whether we were opened at login instead.
 const startHidden = process.argv.includes('--hidden') || (IS_MAC && app.getLoginItemSettings().wasOpenedAtLogin);
 
