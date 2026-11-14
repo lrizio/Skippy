@@ -49,6 +49,7 @@ function connect() {
     if (!/^wss?:\/\//.test(url)) url = 'ws://' + url;
     let sock;
     try { sock = new WebSocket(url); } catch { return reject(new Error('Bad server address.')); }
+    try { serverHost = new URL(url).hostname; } catch { /* no relay host */ }
     const timer = setTimeout(() => { sock.close(); reject(new Error('Could not reach the server.')); }, 6000);
     sock.onopen = () => { clearTimeout(timer); ws = sock; resolve(); };
     sock.onerror = () => { clearTimeout(timer); reject(new Error('Could not reach the server.')); };
@@ -131,6 +132,7 @@ function onServer(m) {
 async function onAuthed(m) {
   const wasLoggedIn = loggedIn;
   me = m.user; me.totp = !!m.totp; token = m.token; loggedIn = true;
+  turnInfo = m.turn && m.turn.port ? m.turn : null;
   showTotpStage(false);
   $('#conn-banner').classList.add('hidden');
   const patch = { token };
@@ -747,7 +749,14 @@ function setChatWidth(w) {
   window.addEventListener('resize', () => { if (chatShown()) setChatWidth(parseInt($('#side').style.width, 10) || 320); });
 }
 
-function iceConfig() { return { iceServers: S.iceServers }; }
+// The server also runs a media relay (TURN) on the same host; it hands out short credentials after login, so people who
+// cannot reach each other directly (two phones on mobile data, say) can still call through it.
+let serverHost = '', turnInfo = null;
+function iceConfig() {
+  const servers = [...S.iceServers];
+  if (turnInfo && serverHost) servers.push({ urls: `turn:${serverHost}:${turnInfo.port}?transport=udp`, username: turnInfo.username, credential: turnInfo.credential });
+  return { iceServers: servers };
+}
 
 // The newcomer sends the first offer; people already in the room wait for it (avoids offer collisions).
 function makePeer(user, initiator = false) {

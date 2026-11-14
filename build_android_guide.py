@@ -235,6 +235,7 @@ def build():
     f.append(P("Troubleshooting", style_h2))
     f.append(table([
         ["Problem", "What to try"],
+        ["Call to another phone stays on <i>connecting</i>", "Both phones on different networks need the server's media relay: the server must be version 1.19.2 or newer (update the server, then log out and in on the phones) and allow UDP port 3478 in its firewall. Both phones need Tailscale on."],
         ["<b>\"Could not reach the server\"</b>",
          "Turn on <b>Tailscale</b> on the phone and make sure it shows connected. Check the address and port "
          "(for example 100.64.0.10:8470) and that the server program is running on its PC."],

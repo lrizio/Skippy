@@ -12,6 +12,7 @@ try { ({ DatabaseSync } = require('node:sqlite')); } catch {
 }
 const { WebSocketServer } = require('ws');
 const totp = require('./totp');
+const turnRelay = require('./turn');
 
 const PORT = parseInt(process.env.PORT || '8470', 10);
 const DB_PATH = process.env.SKIPPY_DB || path.join(require('./home'), 'skippy.db');
@@ -292,7 +293,8 @@ function sendAuthed(c, user, token, extra) {
   if (c.user) goOffline(c);
   c.user = user;
   send(c, { t: 'authed', user: publicUser(user), totp: !!user.totp_enabled, hasRecovery: !!user.recovery_hash, token,
-            rooms: q.recentRooms.all(user.id).map(r => r.room), ...extra });
+            rooms: q.recentRooms.all(user.id).map(r => r.room),
+            turn: turn ? turn.credentials() : null, ...extra });
   goOnline(c);
   if (q.missed.all(user.id).length) sendMissed(c); // the app starts with an empty list, so nothing to send otherwise
   const inbox = inboxFor(user.id);
@@ -636,3 +638,6 @@ server.on('error', e => {
   process.exit(1);
 });
 server.listen(PORT, () => console.log(`Skippy server listening on :${PORT} (db: ${DB_PATH})`));
+// Media relay for callers who cannot reach each other directly (e.g. two phones on mobile data). SKIPPY_TURN=0 turns it off.
+let turn = null;
+try { turn = turnRelay.start(); } catch (e) { console.log('TURN relay not started:', e.message); }

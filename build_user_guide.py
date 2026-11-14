@@ -154,7 +154,8 @@ def build():
     f.append(P("npm install<br/>node server.js", style_code))
     f.append(P("On Windows you can instead double-click <i>Start Skippy Server.bat</i> after the first "
                "<i>npm install</i>. The server listens on port <b>8470</b> and stores its data in <i>skippy.db</i> "
-               "beside it. If Windows Firewall asks about Node.js, allow it on <b>private networks</b>."))
+               "beside it. If Windows Firewall asks about Node.js, allow it on <b>private networks</b> (allow UDP too: since version 1.19.2 the server also runs a media relay on UDP port 3478, "
+               "which lets two phones on different networks call each other)."))
     f.append(P("<b>3. Tell the app where the server is.</b> On the login screen, expand <b>Server</b> and type the "
                "address, for example <i>ws://192.168.1.20:8470</i> (the host's computer on your network). The "
                "address is remembered. Everyone in a group must use the same server."))
