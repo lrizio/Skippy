@@ -27,8 +27,8 @@ APP = "Skippy for Android"
 ROOT = os.path.dirname(os.path.abspath(__file__))
 OUT_PATH = os.path.join(ROOT, "docs", f"{APP} User Guide.pdf")
 SHOTS = os.path.join(ROOT, "docs", "guide-android")
-APK_VERSION = "1.0.0"
 DESKTOP_VERSION = json.load(open(os.path.join(ROOT, "app", "package.json"), encoding="utf-8"))["version"]
+APK_VERSION = DESKTOP_VERSION
 
 ACCENT = colors.HexColor("#1565c0")
 CALLOUT_BG = colors.HexColor("#fff3e0")
@@ -135,8 +135,8 @@ def build():
         "The <b>server address</b> from whoever runs your Skippy server, for example <b>100.64.0.10:8470</b>.",
         "If that address starts with <b>100.</b> it is a Tailscale address: install the <b>Tailscale</b> app on the "
         "phone, sign in to the same account as the server and switch it on. Without it the phone cannot reach the server.",
-        "The file <b>Skippy-Android-1.0.0.apk</b> from the "
-        "<b>android-v1.0.0</b> release at github.com/lrizio/Skippy/releases.",
+        f"The file <b>Skippy-Android-{APK_VERSION}.apk</b> from the "
+        "<b>latest release</b> at github.com/lrizio/Skippy/releases (the one release page holds the files for every platform).",
     ]))
     f.append(Spacer(1, 4))
     f.append(warn(
@@ -147,8 +147,8 @@ def build():
     f.append(P("Install - choose one method", style_h2))
     f.append(P("Method A: install on the phone itself (easiest)", style_h3))
     f.append(numbered([
-        "On the phone, open the browser and go to <b>github.com/lrizio/Skippy/releases</b>. Open the release named "
-        "<b>Skippy for Android 1.0.0</b> and tap <b>Skippy-Android-1.0.0.apk</b> to download it.",
+        "On the phone, open the browser and go to <b>github.com/lrizio/Skippy/releases</b>. Open the <b>latest "
+        f"release</b> and tap <b>Skippy-Android-{APK_VERSION}.apk</b> in its list of files to download it.",
         "When the download finishes tap <b>Open</b> (or find it in the <b>Files</b> or <b>Downloads</b> app and tap it).",
         "Android says it can't install apps from this source: tap <b>Settings</b> and switch on "
         "<b>Allow from this source</b> for the browser or Files app you used, then press Back.",
@@ -165,7 +165,7 @@ def build():
         "\"Allow USB debugging?\" prompt (tick <i>Always allow</i>).",
         "On the PC, with the Android <b>platform-tools</b> installed, open a command prompt in the folder with the APK and run:",
     ]))
-    f.append(P("adb devices<br/>adb install -r Skippy-Android-1.0.0.apk", style_code))
+    f.append(P(f"adb devices<br/>adb install -r Skippy-Android-{APK_VERSION}.apk", style_code))
     f.append(P("<b>adb devices</b> must list your phone as <i>device</i>; <b>Success</b> means it installed. "
                "<b>-r</b> keeps your login and settings when you update."))
     f.append(P("Method C: copy the file over USB", style_h3))

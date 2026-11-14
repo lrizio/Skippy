@@ -6,11 +6,13 @@ Apps for **Windows, macOS, Linux, Android and iPhone**, plus a small server you 
 | Platform | Download | Status | Guide |
 |---|---|---|---|
 | **Windows** | [`Skippy-Setup-<version>.exe`](https://github.com/lrizio/Skippy/releases/latest) | Stable | [Skippy User Guide](docs/Skippy%20User%20Guide.pdf) |
-| **Android** | [`Skippy-Android-<version>.apk`](https://github.com/lrizio/Skippy/releases/tag/android-v1.0.0) | Stable (phone client) | [Skippy for Android User Guide](docs/Skippy%20for%20Android%20User%20Guide.pdf) |
-| **macOS** | [`Skippy-<version>-mac.dmg`](https://github.com/lrizio/Skippy/releases/tag/apple-v1.18.0) | **Test release** (not yet run on real Apple hardware) | [Skippy for Mac and iPhone User Guide](docs/Skippy%20for%20Mac%20and%20iPhone%20User%20Guide.pdf) |
-| **iPhone / iPad** | [`Skippy-unsigned.ipa`](https://github.com/lrizio/Skippy/releases/tag/apple-v1.18.0) (you sign it yourself) | **Test release** (phone client) | same guide as macOS |
-| **Linux** | [AppImage / .deb, x86_64 + arm64](https://github.com/lrizio/Skippy/releases/tag/linux-v1.19.0) | **Test release** | [Skippy for Linux User Guide](docs/Skippy%20for%20Linux%20User%20Guide.pdf) |
+| **Android** | [`Skippy-Android-<version>.apk`](https://github.com/lrizio/Skippy/releases/latest) | Stable (phone client) | [Skippy for Android User Guide](docs/Skippy%20for%20Android%20User%20Guide.pdf) |
+| **macOS** | [`Skippy-<version>-mac.dmg`](https://github.com/lrizio/Skippy/releases/latest) | **Test release** (not yet run on real Apple hardware) | [Skippy for Mac and iPhone User Guide](docs/Skippy%20for%20Mac%20and%20iPhone%20User%20Guide.pdf) |
+| **iPhone / iPad** | [`Skippy-unsigned.ipa`](https://github.com/lrizio/Skippy/releases/latest) (you sign it yourself) | **Test release** (phone client) | same guide as macOS |
+| **Linux** | [AppImage / .deb, x86_64 + arm64](https://github.com/lrizio/Skippy/releases/latest) | **Test release** | [Skippy for Linux User Guide](docs/Skippy%20for%20Linux%20User%20Guide.pdf) |
 | **Server** | [`Skippy-Server-*` in the latest release](https://github.com/lrizio/Skippy/releases/latest) | Stable; runs on Windows, Linux, macOS (Node 22.13+) | see below |
+
+**Every download is on one page: the [latest release](https://github.com/lrizio/Skippy/releases/latest)** - all the apps, the server and the guides are attached to it, and the in-app "update available" banner opens it.
 
 The phone apps (Android, iPhone) are clients only: no recording, no screen sharing, and no ringing while the app is closed.
 **Test releases** are built and start-tested on GitHub's machines but need feedback from real users - please report what works and what doesn't at [Issues](https://github.com/lrizio/Skippy/issues).
@@ -42,14 +44,14 @@ Local build on a Mac: `cd app && npm install && npm run dist:mac`.
 
 ### iPhone / iPad (client only)
 Test release, `Skippy-unsigned.ipa`. It must be signed to install: sideload with [Sideloadly](https://sideloadly.io/) or AltStore using a free Apple ID (re-sign every 7 days), or open `android/ios/App/App.xcodeproj` in Xcode, pick your team and press Run. No speaker picker (iOS chooses the audio route). Received files appear in *Files > On My iPhone > Skippy*. If the server is on Tailscale, the iPhone needs Tailscale running too.
-Local build (on a Mac): `cd android && npm install && npm run build:ios`. Guide: "Skippy for Mac and iPhone User Guide" (attached to the `apple-v*` release).
+Local build (on a Mac): `cd android && npm install && npm run build:ios`. Guide: "Skippy for Mac and iPhone User Guide" (attached to the latest release).
 
 ### Linux
-Test release (`linux-v*`): `Skippy-<version>-linux-x86_64.AppImage` / `-arm64.AppImage` (any distro; `chmod +x` and run) and `Skippy-<version>-linux-amd64.deb` / `-arm64.deb` (Debian/Ubuntu/Raspberry Pi OS; `sudo apt install ./file.deb`), built by the **Build Linux apps** workflow. Ubuntu 23.10+ may need `--no-sandbox` for the AppImage (the .deb is fine); GNOME needs the AppIndicator extension to show the tray icon; screen sharing under Wayland uses PipeWire; transcripts need `whisper-cli` on the PATH.
-Local build on Linux: `cd app && npm install && npm run dist:linux`. Guide: "Skippy for Linux User Guide" (attached to the release).
+Test release: `Skippy-<version>-linux-x86_64.AppImage` / `-arm64.AppImage` (any distro; `chmod +x` and run) and `Skippy-<version>-linux-amd64.deb` / `-arm64.deb` (Debian/Ubuntu/Raspberry Pi OS; `sudo apt install ./file.deb`), built by the **Build Linux apps** workflow. Ubuntu 23.10+ may need `--no-sandbox` for the AppImage (the .deb is fine); GNOME needs the AppIndicator extension to show the tray icon; screen sharing under Wayland uses PipeWire; transcripts need `whisper-cli` on the PATH.
+Local build on Linux: `cd app && npm install && npm run dist:linux`. Guide: "Skippy for Linux User Guide" (attached to the latest release).
 
 ### Android (client only)
-[`Skippy-Android-<version>.apk`](https://github.com/lrizio/Skippy/releases/tag/android-v1.0.0) (in the `android-v*` releases, with the "Skippy for Android User Guide" PDF) is a phone client for the same server: log in, rooms, direct calls, chat and file transfer.
+[`Skippy-Android-<version>.apk`](https://github.com/lrizio/Skippy/releases/latest) (in the latest release, with the "Skippy for Android User Guide" PDF) is a phone client for the same server: log in, rooms, direct calls, chat and file transfer.
 Install it by sideloading (allow "install unknown apps", or `adb install -r Skippy-Android-<version>.apk`), then enter the server address under **Server** - if the server is on Tailscale, the phone needs Tailscale running too.
 Build it yourself: needs JDK 21 and the Android SDK (platform 36); `cd android && npm install && npm run build`, then `gradlew assembleDebug` in `android/android`.
 The Android and iPhone apps share `app/renderer` with the desktop apps (`android/shim` holds the phone-specific parts; the Capacitor project for both lives in `android/`).

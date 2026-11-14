@@ -13,7 +13,9 @@ fs.rmSync(out, { recursive: true, force: true });
 fs.mkdirSync(out, { recursive: true });
 for (const f of fs.readdirSync(src)) fs.copyFileSync(path.join(src, f), path.join(out, f));
 for (const f of ['shim.js', 'mobile.css']) fs.copyFileSync(path.join(shim, f), path.join(out, f));
-fs.writeFileSync(path.join(out, 'version.js'), `window.SKIPPY_VERSION = ${JSON.stringify(version)};\n`);
+fs.writeFileSync(path.join(out, 'version.js'),
+  `window.SKIPPY_VERSION = ${JSON.stringify(version)};
+`);
 fs.copyFileSync(path.join(root, '..', 'app', 'icon.png'), path.join(out, 'icon.png'));
 
 let html = fs.readFileSync(path.join(out, 'index.html'), 'utf8');
@@ -37,4 +39,13 @@ if (fs.existsSync(pbx)) {
        .replace(/CURRENT_PROJECT_VERSION = [^;]+;/g, `CURRENT_PROJECT_VERSION = ${build};`);
   fs.writeFileSync(pbx, t);
   console.log('iOS project version', version, 'build', build);
+}
+
+// Android: keep versionName/versionCode in step with the app version (code = maj*10000 + min*100 + patch).
+const gradle = path.join(root, 'android', 'app', 'build.gradle');
+if (fs.existsSync(gradle)) {
+  const [am, an, ap] = version.split('.').map(Number);
+  let g = fs.readFileSync(gradle, 'utf8');
+  g = g.replace(/versionCode \d+/, `versionCode ${am * 10000 + an * 100 + ap}`).replace(/versionName "[^"]*"/, `versionName "${version}"`);
+  fs.writeFileSync(gradle, g);
 }

@@ -56,7 +56,7 @@ def build():
         "The <b>server address</b> from whoever runs your Skippy server, e.g. <b>100.64.0.10:8470</b>. If it starts with "
         "<b>100.</b> it is a Tailscale address: install Tailscale (tailscale.com/download), sign in to the server's account and run "
         "<b>tailscale up</b>.",
-        f"One file from the <b>{TAG}</b> release at github.com/lrizio/Skippy/releases: the <b>.AppImage</b> (works on any "
+        f"One file from the <b>latest release</b> at github.com/lrizio/Skippy/releases: the <b>.AppImage</b> (works on any "
         "distribution) or the <b>.deb</b> (Debian, Ubuntu, Mint, Raspberry Pi OS) for your processor "
         "(<b>x86_64/amd64</b> for ordinary PCs, <b>arm64</b> for ARM).",
     ]))

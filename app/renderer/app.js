@@ -352,8 +352,15 @@ async function startLocal() {
 
   let stream = null, note = '';
   if (old) old.getTracks().forEach(t => t.stop()); // release the device before reopening it
-  for (const attempt of [{ audio, video }, { audio, video: false }, { audio: false, video }]) {
-    try { stream = await navigator.mediaDevices.getUserMedia(attempt); break; } catch (e) { note = e.name; }
+  // A remembered device id can go stale (phones renumber their devices), so after the exact choice fails try the default devices.
+  const anyAudio = { echoCancellation: true, noiseSuppression: true, autoGainControl: true };
+  const anyVideo = { width: { ideal: 640 }, height: { ideal: 360 }, frameRate: { ideal: 24 } };
+  const attempts = [{ audio, video }, { audio, video: false }];
+  if (S.devices.mic || S.devices.cam) attempts.push({ audio: anyAudio, video: anyVideo }, { audio: anyAudio, video: false });
+  attempts.push({ audio: false, video: anyVideo });
+  let micNote = '';
+  for (const attempt of attempts) {
+    try { stream = await navigator.mediaDevices.getUserMedia(attempt); break; } catch (e) { note = e.name; if (attempt.audio && !micNote) micNote = e.name; }
   }
   if (!stream) stream = new MediaStream();
   localStream = stream;
@@ -364,7 +371,11 @@ async function startLocal() {
   };
   const hasA = stream.getAudioTracks().length > 0, hasV = stream.getVideoTracks().length > 0;
   $('#preview-note').textContent = hasV ? '' : (note === 'NotAllowedError' ? 'Camera access was denied.' : 'No camera available.');
-  if (!hasA) toast('No microphone available - others will not hear you.');
+  if (!hasA) toast(micNote === 'NotAllowedError'
+    ? 'Microphone access is blocked - allow it for Skippy in your device settings, then press Unmute.'
+    : 'No microphone available - others will not hear you. Press Unmute to try again.');
+  // the system itself can silence a live microphone track (another app took it, a call came in)
+  for (const t of stream.getAudioTracks()) t.onmute = () => { if (localStream === stream && room) toast('Your microphone is being blocked by the system or another app.'); };
   applyTrackStates();
   $('#preview').srcObject = stream;
   await refreshDevices(); // labels become available once permission is granted
@@ -379,12 +390,14 @@ async function startLocal() {
   recSwapLocal();
 }
 
+const noMicrophone = () => !!localStream && !localStream.getAudioTracks().some(t => t.readyState === 'live');
 function applyTrackStates() {
   localStream?.getAudioTracks().forEach(t => t.enabled = micOn || !room); // in the lobby the mic stays live so the level meter works
   localStream?.getVideoTracks().forEach(t => t.enabled = camOn);
-  $('#btn-mic').textContent = micOn ? 'Mute' : 'Unmute';
-  $('#btn-mic').classList.toggle('off', !micOn);
-  setMicIcon($('#self-tile'), micOn);
+  const micShown = micOn && !noMicrophone(); // no working microphone counts as muted, so the button offers Unmute
+  $('#btn-mic').textContent = micShown ? 'Mute' : 'Unmute';
+  $('#btn-mic').classList.toggle('off', !micShown);
+  setMicIcon($('#self-tile'), micShown);
   $('#btn-cam').textContent = camOn ? 'Stop video' : 'Start video';
   $('#btn-cam').classList.toggle('off', !camOn);
   updateSelfTile();
@@ -396,9 +409,13 @@ function setMicIcon(tile, on) {
   m.title = on ? 'Microphone on' : 'Microphone muted';
 }
 function sendState(p) {
-  if (p.dc?.readyState === 'open') p.dc.send(JSON.stringify({ k: 'state', mic: micOn, cam: camOn || !!screenStream, rec: typeof recOn === 'function' && recOn() }));
+  if (p.dc?.readyState === 'open') p.dc.send(JSON.stringify({ k: 'state', mic: micOn && !noMicrophone(), cam: camOn || !!screenStream, rec: typeof recOn === 'function' && recOn() }));
 }
-$('#btn-mic').onclick = () => { micOn = !micOn; applyTrackStates(); };
+$('#btn-mic').onclick = async () => {
+  const live = localStream?.getAudioTracks().some(t => t.readyState === 'live');
+  if (!live) { micOn = true; await startLocal(); return; } // no working microphone yet: Unmute asks for it again
+  micOn = !micOn; applyTrackStates();
+};
 $('#btn-cam').onclick = () => { camOn = !camOn; applyTrackStates(); };
 
 function startMeter(stream) {

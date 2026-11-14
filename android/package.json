@@ -1,6 +1,6 @@
 {
   "name": "skippy-android",
-  "version": "1.0.0",
+  "version": "1.19.1",
   "private": true,
   "description": "Skippy for Android (Capacitor wrapper around the desktop renderer)",
   "scripts": {

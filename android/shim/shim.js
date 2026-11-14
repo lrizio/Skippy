@@ -45,6 +45,7 @@
       }, 0);
       return 'data:image/gif;base64,R0lGODlhAQABAIAAAP///wAAACH5BAEAAAAALAAAAAABAAEAAAICRAEAOw==';
     },
+    // The latest GitHub release carries the files for every platform (Windows, Mac, iPhone, Linux, Android).
     checkUpdate: async wsUrl => {
       const get = async u => { const r = await fetch(u); if (!r.ok) throw new Error(r.status); return r.json(); };
       try {

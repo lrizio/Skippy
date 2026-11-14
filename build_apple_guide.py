@@ -137,7 +137,7 @@ def build():
         "The <b>server address</b> from whoever runs your Skippy server, for example <b>100.64.0.10:8470</b>.",
         "If that address starts with <b>100.</b> it is a Tailscale address: install <b>Tailscale</b> on the Mac, "
         "sign in to the same account as the server and switch it on.",
-        f"The file <b>Skippy-{VERSION}-mac.dmg</b> from the <b>{TAG}</b> release at github.com/lrizio/Skippy/releases "
+        f"The file <b>Skippy-{VERSION}-mac.dmg</b> from the <b>latest release</b> at github.com/lrizio/Skippy/releases "
         "(about 220 MB).",
     ]))
     f.append(P("Install", style_h2))
@@ -205,7 +205,7 @@ def build():
     f.append(bullets([
         "An iPhone (or iPad) running <b>iOS 15 or newer</b>.",
         "The <b>server address</b> (see above) and, for a 100.x address, the <b>Tailscale</b> app switched on.",
-        f"The file <b>Skippy-unsigned.ipa</b> from the <b>{TAG}</b> release, and a way to sign it (below).",
+        f"The file <b>Skippy-unsigned.ipa</b> from the <b>latest release</b>, and a way to sign it (below).",
     ]))
     f.append(warn(
         "<b>Why installing is more work than on Android.</b> Apple only lets apps onto an iPhone if they are signed. "
