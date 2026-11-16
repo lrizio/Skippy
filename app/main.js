@@ -194,16 +194,25 @@ function runTailscale(args) {
       (err, stdout) => resolve({ err, stdout: String(stdout || '') }));
   });
 }
+// True when this computer has a Tailscale address (100.64.0.0/10) on a network interface, i.e. Tailscale is really up.
+// Used as a cross-check because the CLI is unreliable on macOS (the app-bundled binary can print non-JSON text or fail
+// when launched from another app even though Tailscale is running).
+function hasTailscaleAddress() {
+  try {
+    return Object.values(require('os').networkInterfaces()).flat().some(a => a && a.family === 'IPv4' && (m => m && +m[1] >= 64 && +m[1] <= 127)(String(a.address).match(/^100\.(\d+)\./)));
+  } catch { return false; }
+}
 ipcMain.handle('tailscale:status', async () => {
   const { err, stdout } = await runTailscale(['status', '--json']);
-  if (err && err.code === 'ENOENT') return 'not-installed';
-  try {
-    const st = JSON.parse(stdout).BackendState;
-    if (st === 'Running') return 'running';
-    if (st === 'NeedsLogin' || st === 'NeedsMachineAuth') return 'needs-login';
-    if (st === 'NoState' || st === 'Starting') return 'starting';
-    return 'stopped';
-  } catch { return err ? 'unknown' : 'stopped'; }
+  if (err && err.code === 'ENOENT' && !hasTailscaleAddress()) return 'not-installed';
+  let st = null;
+  try { st = JSON.parse(stdout).BackendState; } catch { /* CLI gave no usable JSON */ }
+  if (st === 'Running') return 'running';
+  if (st === 'NeedsLogin' || st === 'NeedsMachineAuth') return 'needs-login';
+  if (hasTailscaleAddress()) return 'running'; // CLI said otherwise (or said nothing) but Tailscale has an address
+  if (st === 'NoState' || st === 'Starting') return 'starting';
+  if (st) return 'stopped';
+  return 'unknown'; // could not tell: show no warning rather than a false one
 });
 ipcMain.handle('tailscale:start', async () => {
   const { err } = await runTailscale(['up']);
