@@ -7,7 +7,9 @@ Start it:
   - "Run Skippy Server in Background.bat" : runs hidden, starts when you sign in to Windows,
     restarts if it crashes. "Stop Skippy Server Background.bat" turns that off.
 
-Port 8470 (set the PORT environment variable to change). Accounts are kept in skippy.db next to the .exe -
+Port 8470 (set the PORT environment variable to change). A built-in media relay (TURN) also listens on UDP 3478 so
+two phones on different networks can call each other; allow it in Windows Firewall too (SKIPPY_TURN=0 turns it off,
+SKIPPY_TURN_PORT / SKIPPY_TURN_IP change it; by default it advertises this PC's Tailscale address). Accounts are kept in skippy.db next to the .exe -
 back that file up. Log (background mode): server.log
 
 Helper commands (run in a command window opened in this folder):
