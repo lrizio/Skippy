@@ -53,7 +53,7 @@ Local build on Linux: `cd app && npm install && npm run dist:linux`. Guide: "Ski
 ### Android (client only)
 [`Skippy-Android-<version>.apk`](https://github.com/lrizio/Skippy/releases/latest) (in the latest release, with the "Skippy for Android User Guide" PDF) is a phone client for the same server: log in, rooms, direct calls, chat and file transfer.
 Install it by sideloading (allow "install unknown apps", or `adb install -r Skippy-Android-<version>.apk`), then enter the server address under **Server** - if the server is on Tailscale, the phone needs Tailscale running too.
-Build it yourself: needs JDK 21 and the Android SDK (platform 36); `cd android && npm install && npm run build`, then `gradlew assembleDebug` in `android/android`.
+Build it yourself: needs JDK 21 and the Android SDK (platform 36); `cd android && npm install && npm run build`, then `gradlew assembleDebug` in `android/android`. Gradle must be told where the SDK is: set the `ANDROID_HOME` environment variable, or create `android/android/local.properties` containing `sdk.dir=C:/path/to/Android/Sdk` (that file is machine-specific and git-ignored).
 The Android and iPhone apps share `app/renderer` with the desktop apps (`android/shim` holds the phone-specific parts; the Capacitor project for both lives in `android/`).
 
 ## What it does
